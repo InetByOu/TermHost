@@ -1,54 +1,47 @@
-# TermHost v2
+# TermHost v2.1
 
-> Termux Web Hosting Manager - Full Version
+> Termux Web Hosting Manager - Full Interactive Version
 
-Powerful interactive CLI tool to manage web hosting directly from Termux with support for local + public hosting.
+Powerful tool to run web hosting (Nginx + PHP-FPM + MariaDB) directly from Termux with easy public access via tunnels.
 
 ## Features
 
-- One-run installer (Nginx + PHP-FPM + MariaDB)
-- Full interactive CLI menu
-- Create multiple websites easily
-- Start/Stop services with one command
-- Online tunneling support:
-  - Ngrok (with & without token)
-  - Cloudflare Tunnel (quick + custom domain)
+- One command installer
+- Beautiful interactive CLI menu
+- Create unlimited websites
+- Each website accessible at `http://localhost:8080/namawebsite/`
+- Start/Stop all services easily
+- Multiple public hosting options:
+  - Ngrok (with token & free)
+  - Cloudflare Tunnel (quick + with custom domain)
   - localhost.run
-- Real-time status + active public URLs
+- Shows active public URLs automatically
+- Basic database management
 - Built-in troubleshooting guide
-- Ready to use
+- Ready to use & stable
 
-## Installation
+## Quick Start
 
 ```bash
-pkg install git -y
 git clone https://github.com/InetByOu/TermHost.git
 cd TermHost
 bash install.sh
 bash termhost.sh
 ```
 
-## Usage
+## How to Access Your Websites
 
-Just run:
-```bash
-bash termhost.sh
+After creating a website named `mysite`, open in browser:
+```
+http://localhost:8080/mysite/
 ```
 
-Then use the interactive menu.
+## Online Access (Public URL)
 
-## Project Structure
-
-```
-TermHost/
-├── install.sh
-├── termhost.sh
-├── config/
-│   └── config.json
-├── sites/           # Your websites go here
-├── logs/
-└── modules/
-```
+Use menu **5) Setup Online Tunnel** to get public URL using:
+- Ngrok
+- Cloudflare Tunnel
+- localhost.run
 
 ## Author
 InetByOu
