@@ -1,70 +1,57 @@
-# TermHost
+# TermHost v2
 
-> Termux Hosting Manager
+> Termux Web Hosting Manager - Full Version
 
-Tool untuk mengelola web hosting langsung dari Termux dengan mudah dan cepat.
+Powerful interactive CLI tool to manage web hosting directly from Termux with support for local + public hosting.
 
-## ✨ Fitur
+## Features
 
-- Setup hosting website di Termux dengan cepat
-- Mendukung PHP, Node.js, Python, dan static site
-- Manajemen port & tunneling otomatis
-- Interface CLI yang sederhana
-- Monitoring status server
-- Mudah dijalankan di Android
+- One-run installer (Nginx + PHP-FPM + MariaDB)
+- Full interactive CLI menu
+- Create multiple websites easily
+- Start/Stop services with one command
+- Online tunneling support:
+  - Ngrok (with & without token)
+  - Cloudflare Tunnel (quick + custom domain)
+  - localhost.run
+- Real-time status + active public URLs
+- Built-in troubleshooting guide
+- Ready to use
 
-## 📋 Persyaratan
-
-- Termux (Android)
-- Git
-- Python 3 (opsional, tergantung fitur)
-- Storage permission di Termux
-
-## 🚀 Instalasi
+## Installation
 
 ```bash
-# Update Termux
-pkg update && pkg upgrade -y
-
-# Clone repository
- git clone https://github.com/InetByOu/TermHost.git
+pkg install git -y
+git clone https://github.com/InetByOu/TermHost.git
 cd TermHost
-
-# Beri izin eksekusi
-chmod +x *.sh
-
-# Jalankan
-./termhost.sh
+bash install.sh
+bash termhost.sh
 ```
 
-## 📖 Penggunaan
+## Usage
 
+Just run:
 ```bash
-# Mulai hosting
-termhost start
-
-# Cek status
-termhost status
-
-# Stop hosting
-termhost stop
-
-# Lihat bantuan
-termhost help
+bash termhost.sh
 ```
 
-## ⚙️ Konfigurasi
+Then use the interactive menu.
 
-Edit file konfigurasi sesuai kebutuhan kamu di:
+## Project Structure
 
-```bash
-config/config.json
+```
+TermHost/
+├── install.sh
+├── termhost.sh
+├── config/
+│   └── config.json
+├── sites/           # Your websites go here
+├── logs/
+└── modules/
 ```
 
-## 🤝 Kontribusi
+## Author
+InetByOu
 
-Pull request sangat diterima! Silakan fork repo ini dan buat perubahan yang kamu inginkan.
-
-## 📄 Lisensi
-
-Lihat file [LICENSE](LICENSE) untuk detail lisensi.
+## License
+MIT
