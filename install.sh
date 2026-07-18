@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Installer v4.2 - Use php instead of php-pdo
+# TermHost Installer v4.3 - Smart Package with Fallback
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,7 +13,7 @@ INSTALL_DIR="$HOME/termhost"
 BIN_PATH="$PREFIX/bin/termhost"
 
 clear
-echo -e "${BLUE}TermHost Installer v4.2${NC}"
+echo -e "${BLUE}TermHost Installer v4.3${NC}"
     echo "===================================="
     echo ""
 
@@ -41,29 +41,50 @@ echo_step "2/7" "Updating package repositories"
 pkg update -y >> /dev/null 2>&1 || true
 echo_ok
 
-# ==================== 3. INSTALL CORE PACKAGES ====================
-echo_step "3/7" "Installing core packages"
+# ==================== 3. SMART PACKAGE INSTALLATION ====================
+echo_step "3/7" "Installing packages with fallback"
 
-# php already includes PDO in most Termux versions
-CORE="nginx php-fpm php git curl wget jq unzip"
+# Format: main_package:alternative_package
+PACKAGES=(
+    "nginx"
+    "php-fpm"
+    "php"
+    "git"
+    "curl"
+    "wget"
+    "jq"
+    "unzip"
+    "mariadb"
+)
 
-if pkg install -y $CORE >> /dev/null 2>&1; then
-    echo_ok
-else
-    echo_fail
-    echo -e "${RED}Failed to install core packages.${NC}"
-    echo "Please run this manually:"
-    echo "pkg install -y $CORE"
-    exit 1
-fi
+install_with_fallback() {
+    local pkg="$1"
+    
+    # Try main package
+    if pkg install -y "$pkg" >> /dev/null 2>&1; then
+        echo -e "  ${GREEN}✓${NC} $pkg"
+        return 0
+    fi
+    
+    # If failed and has alternative (format: main:alt)
+    if [[ "$pkg" == *":"* ]]; then
+        local alt="${pkg#*:}"
+        echo -e "  ${YELLOW}!${NC} $pkg not available, trying $alt..."
+        if pkg install -y "$alt" >> /dev/null 2>&1; then
+            echo -e "  ${GREEN}✓${NC} $alt (alternative)"
+            return 0
+        fi
+    fi
+    
+    echo -e "  ${RED}✗${NC} $pkg (skipped)"
+    return 1
+}
 
-# MariaDB optional
-echo -ne "${YELLOW}Installing MariaDB (optional)... ${NC}"
-if pkg install -y mariadb >> /dev/null 2>&1; then
-    echo -e "${GREEN}OK${NC}"
-else
-    echo -e "${YELLOW}Skipped${NC}"
-fi
+for pkg in "${PACKAGES[@]}"; do
+    install_with_fallback "$pkg"
+done
+
+echo_ok
 
 # ==================== 4. DOWNLOAD FROM GITHUB ====================
 echo_step "4/7" "Downloading TermHost from GitHub"
