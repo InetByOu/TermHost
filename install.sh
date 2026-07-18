@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Installer v3.9 - Termux Only
+# TermHost Installer v3.10 - Better Package Installation
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -9,12 +9,11 @@ BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 NC='\033[0m'
 
-# Termux specific paths
 INSTALL_DIR="$HOME/termhost"
 BIN_PATH="$PREFIX/bin/termhost"
 
 clear
-echo -e "${BLUE}TermHost Installer v3.9${NC}"
+echo -e "${BLUE}TermHost Installer v3.10${NC}"
     echo "===================================="
     echo ""
 
@@ -42,22 +41,36 @@ echo_step "2/8" "Updating package repositories"
 pkg update -y >> /dev/null 2>&1 || true
 echo_ok
 
-# ==================== 3. INSTALL PACKAGES ====================
+# ==================== 3. INSTALL PACKAGES (with better handling) ====================
 echo_step "3/8" "Installing required packages"
 
-if pkg install -y nginx php-fpm php php-pdo git curl wget jq unzip mariadb >> /dev/null 2>&1; then
+PACKAGES="nginx php-fpm php php-pdo git curl wget jq unzip mariadb"
+
+install_packages() {
+    pkg install -y $PACKAGES >> /dev/null 2>&1
+}
+
+if install_packages; then
     echo_ok
 else
     echo_fail
-    echo -e "${YELLOW}Trying to recover...${NC}"
+    echo -e "${YELLOW}Attempting recovery...${NC}"
+    
+    # Try to fix dpkg first
     dpkg --configure -a >> /dev/null 2>&1 || true
     apt --fix-broken install -y >> /dev/null 2>&1 || true
+    pkg update -y >> /dev/null 2>&1 || true
     
-    if pkg install -y nginx php-fpm php php-pdo git curl wget jq unzip mariadb >> /dev/null 2>&1; then
+    # Retry installation
+    if install_packages; then
         echo_ok
     else
-        echo -e "${RED}Failed to install packages.${NC}"
-        echo "Please run manually: pkg install -y nginx php-fpm php php-pdo git curl wget jq unzip mariadb"
+        echo -e "${RED}Failed to install some packages.${NC}"
+        echo ""
+        echo -e "${YELLOW}Please run this command manually:${NC}"
+        echo -e "${CYAN}pkg install -y $PACKAGES${NC}"
+        echo ""
+        echo -e "After it succeeds, re-run the installer."
         exit 1
     fi
 fi
@@ -78,12 +91,12 @@ echo_ok
 
 # Verify termhost.sh and supporting directories
 if [ ! -f "$INSTALL_DIR/termhost.sh" ]; then
-    echo -e "${RED}Critical Error: termhost.sh not found after download!${NC}"
+    echo -e "${RED}Critical Error: termhost.sh was not downloaded!${NC}"
     exit 1
 fi
 
 if [ ! -d "$INSTALL_DIR/sites" ] || [ ! -d "$INSTALL_DIR/config" ]; then
-    echo -e "${RED}Critical Error: Supporting directories missing after download!${NC}"
+    echo -e "${RED}Critical Error: Supporting directories missing!${NC}"
     exit 1
 fi
 
