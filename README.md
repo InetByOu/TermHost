@@ -1,6 +1,6 @@
-# TermHost v2.5
+# TermHost v2.6
 
-> Termux Web Hosting Manager with SD Card Support
+> Termux Web Hosting Manager with Error Handling & Permission Fixes
 
 ## One Command Installation
 
@@ -8,26 +8,26 @@
 curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/install.sh | bash
 ```
 
-Run with:
+Run:
 ```bash
 termhost
 ```
 
-## New Feature: Host from SD Card
+## New in v2.6
 
-You can now host files directly from your phone storage (SD Card).
-
-- Menu **2) Create Website from SD Card / Storage**
-- Supports Download, DCIM, Pictures, Documents, or custom folder
-- Automatically suggests running `termux-setup-storage` if storage is not set up yet
+- Better error handling throughout the app
+- Dedicated **Fix Permissions** function (Menu 9)
+- Clear error messages when something fails
+- Improved permission checks when creating websites from SD Card
 
 ## Features
 
-- Virtual Hosts (`http://namawebsite.localhost:8080`)
-- Host directly from SD Card
+- Host from SD Card / Phone Storage
+- Virtual Hosts
 - Auto Start
-- Ngrok, Cloudflare Tunnel
-- Root support
+- Ngrok + Cloudflare Tunnel
+- Root Support
+- Error Handling & Permission Management
 
 ## Author
 InetByOu

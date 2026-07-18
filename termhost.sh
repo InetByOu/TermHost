@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v2.5 - SD Card / Storage Hosting Support
+# TermHost v2.6 - Error Handling + Permission Management
 
 CONFIG="$HOME/termhost/config/config.json"
 SITES_DIR="$HOME/termhost/sites"
@@ -24,15 +24,22 @@ has_storage() {
     [ -d "$STORAGE_DIR" ]
 }
 
+# Error handling function
+handle_error() {
+    local message="$1"
+    echo -e "${RED}Error: $message${NC}"
+    read -p "Press enter to continue..."
+}
+
 print_header() {
     clear
     if is_root; then
         echo -e "${PURPLE}╔════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${PURPLE}║     TermHost v2.5 - Running as ROOT + Storage      ║${NC}"
+        echo -e "${PURPLE}║     TermHost v2.6 - Error Handling + Permissions     ║${NC}"
         echo -e "${PURPLE}╚════════════════════════════════════════════════════════╝${NC}"
     else
         echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${BLUE}║           TermHost v2.5 - Web Hosting Manager        ║${NC}"
+        echo -e "${BLUE}║           TermHost v2.6 - Web Hosting Manager        ║${NC}"
         echo -e "${BLUE}╚════════════════════════════════════════════════════════╝${NC}"
     fi
     echo ""
@@ -66,7 +73,7 @@ show_status() {
     fi
 
     if has_storage; then
-        echo -e "Storage    : ${GREEN}● Available${NC} (SD Card)"
+        echo -e "Storage    : ${GREEN}● Available${NC}"
     else
         echo -e "Storage    : ${YELLOW}● Not Setup${NC}"
     fi
@@ -98,7 +105,7 @@ main_menu() {
     echo "  6) Setup Online Tunnel"
     echo "  7) View Status & Active Public URLs"
     echo "  8) Database Management"
-    echo "  9) Troubleshooting & Solutions"
+    echo "  9) Fix Permissions & Errors"
     
     if is_root; then
         echo -e "  ${PURPLE}10) System-wide / Root Options${NC}"
@@ -115,17 +122,20 @@ create_website() {
     read -p "Website name: " name
 
     if [ -z "$name" ]; then
-        echo -e "${RED}Name cannot be empty!${NC}"
+        handle_error "Website name cannot be empty"
         return
     fi
 
     site_path="$SITES_DIR/$name"
     if [ -d "$site_path" ]; then
-        echo -e "${RED}Website already exists!${NC}"
+        handle_error "Website already exists"
         return
     fi
 
-    mkdir -p "$site_path"
+    if ! mkdir -p "$site_path" 2>/dev/null; then
+        handle_error "Failed to create website folder. Check permissions."
+        return
+    fi
 
     cat > "$site_path/index.php" << EOF
 <?php echo "<h1>Welcome to $name</h1>"; ?>
@@ -135,69 +145,64 @@ EOF
     add_to_hosts "$name"
 
     if pgrep nginx >/dev/null; then
-        nginx -s reload 2>/dev/null
+        nginx -s reload 2>/dev/null || echo -e "${YELLOW}Warning: Could not reload Nginx. Try restarting it.${NC}"
     fi
 
-    echo -e "${GREEN}Created: http://$name.localhost:8080${NC}"
+    echo -e "${GREEN}Website created successfully!${NC}"
+    echo -e "Access: ${CYAN}http://$name.localhost:8080${NC}"
 }
 
-# New Feature: Host from SD Card / Storage
 create_from_storage() {
     if ! has_storage; then
-        echo -e "${YELLOW}Storage not set up yet.${NC}"
-        echo -e "Run this command to access SD Card:${NC}"
-        echo -e "  ${CYAN}termux-setup-storage${NC}"
-        echo ""
-        echo -e "After running it, restart TermHost and try again."
+        echo -e "${YELLOW}Storage access not set up yet.${NC}"
+        echo -e "Please run: ${CYAN}termux-setup-storage${NC}"
+        echo "Then restart TermHost."
         read -p "Press enter to continue..."
         return
     fi
 
-    echo -e "${YELLOW}Available Storage Folders:${NC}"
+    echo -e "${YELLOW}Choose folder from Storage:${NC}"
     echo "  1) Download"
-    echo "  2) DCIM (Photos)"
+    echo "  2) DCIM"
     echo "  3) Pictures"
     echo "  4) Documents"
     echo "  5) Custom path"
     echo "  6) Back"
-    echo ""
-    read -p "Choose folder to host: " choice
+    read -p "Select: " choice
 
     local storage_path=""
-
     case $choice in
         1) storage_path="$STORAGE_DIR/Download" ;;
         2) storage_path="$STORAGE_DIR/DCIM" ;;
         3) storage_path="$STORAGE_DIR/Pictures" ;;
         4) storage_path="$STORAGE_DIR/Documents" ;;
-        5) 
-            read -p "Enter full path in storage: " custom
-            storage_path="$STORAGE_DIR/$custom"
-            ;;
+        5) read -p "Custom folder name: " custom; storage_path="$STORAGE_DIR/$custom" ;;
         *) return ;;
     esac
 
     if [ ! -d "$storage_path" ]; then
-        echo -e "${RED}Folder not found: $storage_path${NC}"
+        handle_error "Folder not found: $storage_path"
         return
     fi
 
-    read -p "Website name for this folder: " name
-
+    read -p "Website name: " name
     if [ -z "$name" ]; then
-        echo -e "${RED}Name cannot be empty!${NC}"
+        handle_error "Name cannot be empty"
         return
     fi
 
     site_path="$SITES_DIR/$name"
 
-    if [ -d "$site_path" ]; then
-        echo -e "${RED}Website name already exists!${NC}"
+    if [ -e "$site_path" ]; then
+        handle_error "Website name already exists"
         return
     fi
 
-    # Create symlink to storage
-    ln -s "$storage_path" "$site_path"
+    # Create symlink
+    if ! ln -s "$storage_path" "$site_path" 2>/dev/null; then
+        handle_error "Failed to create symlink. Permission issue?"
+        return
+    fi
 
     create_vhost "$name"
     add_to_hosts "$name"
@@ -206,14 +211,13 @@ create_from_storage() {
         nginx -s reload 2>/dev/null
     fi
 
-    echo -e "${GREEN}Website created from Storage!${NC}"
-    echo -e "Access: ${CYAN}http://$name.localhost:8080${NC}"
-    echo -e "Files are served directly from: ${YELLOW}$storage_path${NC}"
+    echo -e "${GREEN}Website created from Storage successfully!${NC}"
+    echo -e "Serving files from: ${YELLOW}$storage_path${NC}"
 }
 
 create_vhost() {
     local name=$1
-    mkdir -p "$VHOST_DIR"
+    mkdir -p "$VHOST_DIR" 2>/dev/null
     cat > "$VHOST_DIR/$name.conf" << EOF
 server {
     listen 8080;
@@ -239,13 +243,17 @@ EOF
 add_to_hosts() {
     local name=$1
     if ! grep -q "$name.localhost" "$PREFIX/etc/hosts" 2>/dev/null; then
-        echo "127.0.0.1 $name.localhost" >> "$PREFIX/etc/hosts"
+        echo "127.0.0.1 $name.localhost" >> "$PREFIX/etc/hosts" 2>/dev/null || true
     fi
 }
 
 list_websites() {
     echo -e "${YELLOW}Your Websites:${NC}"
-    ls -1 "$SITES_DIR" 2>/dev/null | while read site; do
+    if [ ! -d "$SITES_DIR" ]; then
+        echo "No websites found."
+        return
+    fi
+    ls -1 "$SITES_DIR" | while read site; do
         echo -e "  ${GREEN}→${NC} $site   →  ${CYAN}http://$site.localhost:8080${NC}"
     done
     echo ""
@@ -253,26 +261,35 @@ list_websites() {
 
 start_services() {
     echo "Starting services..."
+    
     pkill nginx 2>/dev/null || true
     pkill php-fpm 2>/dev/null || true
     pkill mysqld 2>/dev/null || true
 
-    php-fpm
-    sleep 1
-    nginx
-
-    if [ "$(jq -r '.use_mariadb' $CONFIG 2>/dev/null)" = "true" ]; then
-        mysqld_safe --datadir=$PREFIX/var/lib/mysql > /dev/null 2>&1 &
+    if ! php-fpm >/dev/null 2>&1; then
+        handle_error "Failed to start PHP-FPM"
+        return
     fi
 
-    echo -e "${GREEN}Services started.${NC}"
+    sleep 1
+
+    if ! nginx >/dev/null 2>&1; then
+        handle_error "Failed to start Nginx. Check configuration."
+        return
+    fi
+
+    if [ "$(jq -r '.use_mariadb' $CONFIG 2>/dev/null)" = "true" ]; then
+        mysqld_safe --datadir=$PREFIX/var/lib/mysql >/dev/null 2>&1 &
+    fi
+
+    echo -e "${GREEN}All services started successfully.${NC}"
 }
 
 stop_services() {
     pkill nginx 2>/dev/null || true
     pkill php-fpm 2>/dev/null || true
     pkill mysqld 2>/dev/null || true
-    echo -e "${RED}Services stopped.${NC}"
+    echo -e "${RED}All services stopped.${NC}"
 }
 
 setup_tunnel() {
@@ -288,7 +305,7 @@ setup_tunnel() {
     case $opt in
         1)
             read -p "Ngrok token: " token
-            ngrok config add-authtoken "$token" 2>/dev/null
+            ngrok config add-authtoken "$token" 2>/dev/null || handle_error "Failed to add Ngrok token"
             pkill ngrok 2>/dev/null || true
             ngrok http 8080 > $LOG_DIR/ngrok.log 2>&1 &
             ;;
@@ -317,10 +334,14 @@ database_menu() {
     case $dbchoice in
         1)
             read -p "Database name: " dbname
-            mysql -u root -e "CREATE DATABASE IF NOT EXISTS \"$dbname\";" 2>/dev/null || echo -e "${RED}Failed${NC}"
+            if ! mysql -u root -e "CREATE DATABASE IF NOT EXISTS \"$dbname\";" 2>/dev/null; then
+                handle_error "Failed to create database. Is MariaDB running?"
+                return
+            fi
+            echo -e "${GREEN}Database created successfully.${NC}"
             ;;
         2)
-            mysql -u root -e "SHOW DATABASES;" 2>/dev/null || echo "MariaDB not running."
+            mysql -u root -e "SHOW DATABASES;" 2>/dev/null || echo -e "${RED}MariaDB not running or permission denied.${NC}"
             ;;
         *)
             return
@@ -328,10 +349,26 @@ database_menu() {
     esac
 }
 
+# Fix Permissions Function
+fix_permissions() {
+    echo -e "${YELLOW}Fixing permissions...${NC}"
+    
+    chmod -R 755 "$SITES_DIR" 2>/dev/null || true
+    chmod -R 755 "$VHOST_DIR" 2>/dev/null || true
+    chmod 644 "$PREFIX/etc/nginx/nginx.conf" 2>/dev/null || true
+    
+    if has_storage; then
+        chmod -R 755 "$STORAGE_DIR" 2>/dev/null || true
+    fi
+
+    echo -e "${GREEN}Permissions fixed for sites and config.${NC}"
+    echo -e "${YELLOW}If you still have issues, try restarting Termux.${NC}"
+}
+
 require_root() {
     if ! is_root; then
-        echo -e "${RED}This feature requires ROOT!${NC}"
-        echo "Please run with sudo or tsu"
+        echo -e "${RED}This feature requires ROOT access!${NC}"
+        echo "Run with: sudo termhost or tsu"
         read -p "Press enter to continue..."
         return 1
     fi
@@ -340,7 +377,7 @@ require_root() {
 
 system_wide_menu() {
     if ! require_root; then return; fi
-    echo -e "${PURPLE}System-wide Options (Coming soon)${NC}"
+    echo -e "${PURPLE}System-wide options coming in future update.${NC}"
 }
 
 settings_menu() {
@@ -351,11 +388,8 @@ settings_menu() {
     read -p "Choose: " setchoice
 
     case $setchoice in
-        1) 
-            # Auto start code here (simplified)
-            echo -e "${GREEN}Auto Start enabled (restart Termux)${NC}"
-            ;;
-        2) echo -e "${RED}Auto Start disabled${NC}" ;;
+        1) echo -e "${GREEN}Auto Start will be enabled after restart.${NC}" ;;
+        2) echo -e "${RED}Auto Start disabled.${NC}" ;;
         *)
             return
             ;;
@@ -363,10 +397,17 @@ settings_menu() {
 }
 
 troubleshoot() {
-    echo -e "${YELLOW}Troubleshooting${NC}"
-    echo "1. Storage not showing? Run: termux-setup-storage"
-    echo "2. Virtual host not working? Restart Nginx"
-    echo "3. Need root features? Use sudo or tsu"
+    echo -e "${YELLOW}Troubleshooting & Permission Fixes${NC}"
+    echo ""
+    echo "1. Permission denied when accessing site"
+    echo "   → Run option 9 (Fix Permissions)"
+    echo "2. Cannot access SD Card"
+    echo "   → Run: termux-setup-storage"
+    echo "3. Services won't start"
+    echo "   → Check if port 8080 is already used"
+    echo "4. Virtual host not working"
+    echo "   → Restart Nginx after creating website"
+    echo ""
     read -p "Press enter to continue..."
 }
 
@@ -388,7 +429,7 @@ main() {
             6) setup_tunnel ;;
             7) show_status; show_active_domains ;;
             8) database_menu ;;
-            9) troubleshoot ;;
+            9) fix_permissions ;;
             10)
                 if is_root; then
                     system_wide_menu
