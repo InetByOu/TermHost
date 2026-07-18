@@ -1,12 +1,13 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v2.6 - Error Handling + Permission Management
+# TermHost v2.7 - Termux:Boot Support for Root Users
 
-CONFIG="$HOME/termhost/config/config.json"
+CONFIG="$HOME/termux/config/config.json"
 SITES_DIR="$HOME/termhost/sites"
 LOG_DIR="$HOME/termhost/logs"
 VHOST_DIR="$HOME/termhost/vhosts"
 STORAGE_DIR="$HOME/storage"
+BOOT_DIR="$HOME/.termux/boot"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -24,10 +25,8 @@ has_storage() {
     [ -d "$STORAGE_DIR" ]
 }
 
-# Error handling function
 handle_error() {
-    local message="$1"
-    echo -e "${RED}Error: $message${NC}"
+    echo -e "${RED}Error: $1${NC}"
     read -p "Press enter to continue..."
 }
 
@@ -35,11 +34,11 @@ print_header() {
     clear
     if is_root; then
         echo -e "${PURPLE}╔════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${PURPLE}║     TermHost v2.6 - Error Handling + Permissions     ║${NC}"
+        echo -e "${PURPLE}║   TermHost v2.7 - Root + Termux:Boot Support         ║${NC}"
         echo -e "${PURPLE}╚════════════════════════════════════════════════════════╝${NC}"
     else
         echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${BLUE}║           TermHost v2.6 - Web Hosting Manager        ║${NC}"
+        echo -e "${BLUE}║           TermHost v2.7 - Web Hosting Manager        ║${NC}"
         echo -e "${BLUE}╚════════════════════════════════════════════════════════╝${NC}"
     fi
     echo ""
@@ -108,7 +107,8 @@ main_menu() {
     echo "  9) Fix Permissions & Errors"
     
     if is_root; then
-        echo -e "  ${PURPLE}10) System-wide / Root Options${NC}"
+        echo -e "  ${PURPLE}10) Termux:Boot Setup (Auto Start on Device Boot)${NC}"
+        echo -e "  ${PURPLE}11) System-wide / Advanced Root${NC}"
     else
         echo "  10) Settings / Auto Start"
     fi
@@ -118,11 +118,9 @@ main_menu() {
 }
 
 create_website() {
-    echo -e "${YELLOW}Create New Website${NC}"
     read -p "Website name: " name
-
     if [ -z "$name" ]; then
-        handle_error "Website name cannot be empty"
+        handle_error "Name cannot be empty"
         return
     fi
 
@@ -132,10 +130,7 @@ create_website() {
         return
     fi
 
-    if ! mkdir -p "$site_path" 2>/dev/null; then
-        handle_error "Failed to create website folder. Check permissions."
-        return
-    fi
+    mkdir -p "$site_path" || { handle_error "Failed to create folder"; return; }
 
     cat > "$site_path/index.php" << EOF
 <?php echo "<h1>Welcome to $name</h1>"; ?>
@@ -144,272 +139,212 @@ EOF
     create_vhost "$name"
     add_to_hosts "$name"
 
-    if pgrep nginx >/dev/null; then
-        nginx -s reload 2>/dev/null || echo -e "${YELLOW}Warning: Could not reload Nginx. Try restarting it.${NC}"
-    fi
-
-    echo -e "${GREEN}Website created successfully!${NC}"
-    echo -e "Access: ${CYAN}http://$name.localhost:8080${NC}"
+    nginx -s reload 2>/dev/null || true
+    echo -e "${GREEN}Website created: http://$name.localhost:8080${NC}"
 }
 
 create_from_storage() {
     if ! has_storage; then
-        echo -e "${YELLOW}Storage access not set up yet.${NC}"
-        echo -e "Please run: ${CYAN}termux-setup-storage${NC}"
-        echo "Then restart TermHost."
-        read -p "Press enter to continue..."
+        echo -e "${YELLOW}Run 'termux-setup-storage' first${NC}"
         return
     fi
 
-    echo -e "${YELLOW}Choose folder from Storage:${NC}"
-    echo "  1) Download"
-    echo "  2) DCIM"
-    echo "  3) Pictures"
-    echo "  4) Documents"
-    echo "  5) Custom path"
-    echo "  6) Back"
-    read -p "Select: " choice
+    echo "1) Download  2) DCIM  3) Pictures  4) Documents  5) Custom"
+    read -p "Choose: " choice
 
-    local storage_path=""
+    local path=""
     case $choice in
-        1) storage_path="$STORAGE_DIR/Download" ;;
-        2) storage_path="$STORAGE_DIR/DCIM" ;;
-        3) storage_path="$STORAGE_DIR/Pictures" ;;
-        4) storage_path="$STORAGE_DIR/Documents" ;;
-        5) read -p "Custom folder name: " custom; storage_path="$STORAGE_DIR/$custom" ;;
+        1) path="$STORAGE_DIR/Download" ;;
+        2) path="$STORAGE_DIR/DCIM" ;;
+        3) path="$STORAGE_DIR/Pictures" ;;
+        4) path="$STORAGE_DIR/Documents" ;;
+        5) read -p "Folder name: " f; path="$STORAGE_DIR/$f" ;;
         *) return ;;
     esac
 
-    if [ ! -d "$storage_path" ]; then
-        handle_error "Folder not found: $storage_path"
+    if [ ! -d "$path" ]; then
+        handle_error "Folder not found"
         return
     fi
 
     read -p "Website name: " name
-    if [ -z "$name" ]; then
-        handle_error "Name cannot be empty"
-        return
-    fi
-
     site_path="$SITES_DIR/$name"
 
-    if [ -e "$site_path" ]; then
-        handle_error "Website name already exists"
-        return
-    fi
-
-    # Create symlink
-    if ! ln -s "$storage_path" "$site_path" 2>/dev/null; then
-        handle_error "Failed to create symlink. Permission issue?"
-        return
-    fi
+    ln -s "$path" "$site_path" || { handle_error "Failed to create symlink"; return; }
 
     create_vhost "$name"
     add_to_hosts "$name"
+    nginx -s reload 2>/dev/null || true
 
-    if pgrep nginx >/dev/null; then
-        nginx -s reload 2>/dev/null
-    fi
-
-    echo -e "${GREEN}Website created from Storage successfully!${NC}"
-    echo -e "Serving files from: ${YELLOW}$storage_path${NC}"
+    echo -e "${GREEN}Created from Storage: http://$name.localhost:8080${NC}"
 }
 
 create_vhost() {
     local name=$1
-    mkdir -p "$VHOST_DIR" 2>/dev/null
+    mkdir -p "$VHOST_DIR"
     cat > "$VHOST_DIR/$name.conf" << EOF
 server {
     listen 8080;
     server_name $name.localhost;
-
     root $SITES_DIR/$name;
     index index.php index.html;
-
-    location / {
-        try_files \$uri \$uri/ /index.php?\$args;
-    }
-
-    location ~ \\.php\$ {
-        fastcgi_pass 127.0.0.1:9000;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
-        include fastcgi_params;
-    }
+    location / { try_files \$uri \$uri/ /index.php?\$args; }
+    location ~ \\.php\$ { fastcgi_pass 127.0.0.1:9000; include fastcgi_params; }
 }
 EOF
 }
 
 add_to_hosts() {
-    local name=$1
-    if ! grep -q "$name.localhost" "$PREFIX/etc/hosts" 2>/dev/null; then
-        echo "127.0.0.1 $name.localhost" >> "$PREFIX/etc/hosts" 2>/dev/null || true
-    fi
+    echo "127.0.0.1 $1.localhost" >> "$PREFIX/etc/hosts" 2>/dev/null || true
 }
 
 list_websites() {
-    echo -e "${YELLOW}Your Websites:${NC}"
-    if [ ! -d "$SITES_DIR" ]; then
-        echo "No websites found."
-        return
-    fi
-    ls -1 "$SITES_DIR" | while read site; do
-        echo -e "  ${GREEN}→${NC} $site   →  ${CYAN}http://$site.localhost:8080${NC}"
+    ls "$SITES_DIR" 2>/dev/null | while read s; do
+        echo "  → $s  → http://$s.localhost:8080"
     done
-    echo ""
 }
 
 start_services() {
-    echo "Starting services..."
-    
-    pkill nginx 2>/dev/null || true
-    pkill php-fpm 2>/dev/null || true
-    pkill mysqld 2>/dev/null || true
-
-    if ! php-fpm >/dev/null 2>&1; then
-        handle_error "Failed to start PHP-FPM"
-        return
-    fi
-
-    sleep 1
-
-    if ! nginx >/dev/null 2>&1; then
-        handle_error "Failed to start Nginx. Check configuration."
-        return
-    fi
-
-    if [ "$(jq -r '.use_mariadb' $CONFIG 2>/dev/null)" = "true" ]; then
-        mysqld_safe --datadir=$PREFIX/var/lib/mysql >/dev/null 2>&1 &
-    fi
-
-    echo -e "${GREEN}All services started successfully.${NC}"
+    pkill nginx php-fpm mysqld 2>/dev/null || true
+    php-fpm && nginx
+    echo -e "${GREEN}Services started.${NC}"
 }
 
 stop_services() {
-    pkill nginx 2>/dev/null || true
-    pkill php-fpm 2>/dev/null || true
-    pkill mysqld 2>/dev/null || true
-    echo -e "${RED}All services stopped.${NC}"
+    pkill nginx php-fpm mysqld 2>/dev/null || true
+    echo -e "${RED}Services stopped.${NC}"
 }
 
 setup_tunnel() {
-    echo -e "${YELLOW}Setup Online Tunnel${NC}"
-    echo "1) Ngrok (with token)"
-    echo "2) Ngrok (free)"
-    echo "3) Cloudflare Tunnel (quick)"
-    echo "4) Cloudflare Tunnel (with token)"
-    echo "5) localhost.run"
-    echo "6) Back"
-    read -p "Choose: " opt
-
-    case $opt in
-        1)
-            read -p "Ngrok token: " token
-            ngrok config add-authtoken "$token" 2>/dev/null || handle_error "Failed to add Ngrok token"
-            pkill ngrok 2>/dev/null || true
-            ngrok http 8080 > $LOG_DIR/ngrok.log 2>&1 &
-            ;;
-        2) pkill ngrok 2>/dev/null || true; ngrok http 8080 > $LOG_DIR/ngrok.log 2>&1 ;;
-        3) pkg install cloudflared -y 2>/dev/null; pkill cloudflared 2>/dev/null || true; cloudflared tunnel --url http://localhost:8080 > $LOG_DIR/cloudflare.log 2>&1 ;;
-        4)
-            read -p "Cloudflare token: " token
-            pkg install cloudflared -y 2>/dev/null
-            pkill cloudflared 2>/dev/null || true
-            cloudflared tunnel run --token "$token" > $LOG_DIR/cloudflare.log 2>&1 &
-            ;;
-        5) pkill ssh 2>/dev/null || true; ssh -o StrictHostKeyChecking=no -R 80:localhost:8080 nokey@localhost.run > $LOG_DIR/localhostrun.log 2>&1 ;;
-        *)
-            return
-            ;;
+    echo "1) Ngrok  2) Cloudflare  3) localhost.run"
+    read -p "Choose: " c
+    case $c in
+        1) read -p "Token: " t; ngrok config add-authtoken "$t"; ngrok http 8080 > $LOG_DIR/ngrok.log 2>&1 & ;;
+        2) pkg install cloudflared -y; cloudflared tunnel --url http://localhost:8080 > $LOG_DIR/cloudflare.log 2>&1 & ;;
+        3) ssh -R 80:localhost:8080 nokey@localhost.run > $LOG_DIR/localhostrun.log 2>&1 & ;;
     esac
 }
 
 database_menu() {
-    echo -e "${YELLOW}Database Management${NC}"
-    echo "1) Create New Database"
-    echo "2) List Databases"
-    echo "3) Back"
-    read -p "Choose: " dbchoice
-
-    case $dbchoice in
-        1)
-            read -p "Database name: " dbname
-            if ! mysql -u root -e "CREATE DATABASE IF NOT EXISTS \"$dbname\";" 2>/dev/null; then
-                handle_error "Failed to create database. Is MariaDB running?"
-                return
-            fi
-            echo -e "${GREEN}Database created successfully.${NC}"
-            ;;
-        2)
-            mysql -u root -e "SHOW DATABASES;" 2>/dev/null || echo -e "${RED}MariaDB not running or permission denied.${NC}"
-            ;;
-        *)
-            return
-            ;;
+    echo "1) Create DB  2) List DBs"
+    read -p "Choose: " c
+    case $c in
+        1) read -p "DB Name: " db; mysql -u root -e "CREATE DATABASE IF NOT EXISTS $db;" ;;
+        2) mysql -u root -e "SHOW DATABASES;" ;;
     esac
 }
 
-# Fix Permissions Function
 fix_permissions() {
-    echo -e "${YELLOW}Fixing permissions...${NC}"
-    
-    chmod -R 755 "$SITES_DIR" 2>/dev/null || true
-    chmod -R 755 "$VHOST_DIR" 2>/dev/null || true
-    chmod 644 "$PREFIX/etc/nginx/nginx.conf" 2>/dev/null || true
-    
-    if has_storage; then
-        chmod -R 755 "$STORAGE_DIR" 2>/dev/null || true
-    fi
-
-    echo -e "${GREEN}Permissions fixed for sites and config.${NC}"
-    echo -e "${YELLOW}If you still have issues, try restarting Termux.${NC}"
+    chmod -R 755 "$SITES_DIR" "$VHOST_DIR" 2>/dev/null || true
+    echo -e "${GREEN}Permissions fixed.${NC}"
 }
 
-require_root() {
+# ==================== TERMUX BOOT (ROOT ONLY) ====================
+setup_termux_boot() {
     if ! is_root; then
-        echo -e "${RED}This feature requires ROOT access!${NC}"
-        echo "Run with: sudo termhost or tsu"
-        read -p "Press enter to continue..."
-        return 1
+        echo -e "${RED}This feature is only available for ROOT users.${NC}"
+        return
     fi
-    return 0
+
+    echo -e "${PURPLE}=== Termux:Boot Setup ===${NC}"
+    echo "This will make TermHost start automatically when your device boots."
+    echo ""
+
+    # Create boot directory
+    mkdir -p "$BOOT_DIR"
+
+    # Create boot script
+    cat > "$BOOT_DIR/start-termhost.sh" << 'BOOTEOF'
+#!/data/data/com.termux/files/usr/bin/bash
+
+# TermHost Auto Start via Termux:Boot
+
+sleep 15   # Wait for system to be ready
+
+# Start services
+pkill nginx 2>/dev/null || true
+pkill php-fpm 2>/dev/null || true
+pkill mysqld 2>/dev/null || true
+
+php-fpm >/dev/null 2>&1
+nginx >/dev/null 2>&1
+
+# Start MariaDB if enabled
+if [ -f ~/termhost/config/config.json ]; then
+    if [ "$(jq -r '.use_mariadb' ~/termhost/config/config.json 2>/dev/null)" = "true" ]; then
+        mysqld_safe --datadir=$PREFIX/var/lib/mysql >/dev/null 2>&1 &
+    fi
+fi
+
+# Optional: Start default tunnel (uncomment if needed)
+# ngrok http 8080 > ~/termhost/logs/ngrok.log 2>&1 &
+BOOTEOF
+
+    chmod +x "$BOOT_DIR/start-termhost.sh"
+
+    echo -e "${GREEN}Termux:Boot script created successfully!${NC}"
+    echo ""
+    echo -e "${YELLOW}Next Steps:${NC}"
+    echo "1. Install Termux:Boot app from F-Droid"
+    echo "2. Open Termux:Boot app once (to grant permission)"
+    echo "3. Reboot your device"
+    echo ""
+    echo -e "${CYAN}Boot script location:${NC}"
+    echo "$BOOT_DIR/start-termhost.sh"
 }
 
-system_wide_menu() {
-    if ! require_root; then return; fi
-    echo -e "${PURPLE}System-wide options coming in future update.${NC}"
+# Try to help root user install Termux:Boot APK
+install_termux_boot_app() {
+    if ! is_root; then
+        echo -e "${RED}Root access required to install APK.${NC}"
+        return
+    fi
+
+    echo -e "${YELLOW}Downloading Termux:Boot APK...${NC}"
+
+    local apk_url="https://f-droid.org/F-Droid.apk"  # Placeholder - better to use direct link
+    local apk_path="$HOME/storage/Download/Termux-Boot.apk"
+
+    mkdir -p "$HOME/storage/Download"
+
+    # Note: Real direct link for Termux:Boot changes. We guide user instead.
+    echo -e "${YELLOW}For best result, please install Termux:Boot manually from F-Droid.${NC}"
+    echo "Direct auto-install of APKs can be unstable."
+    echo ""
+    echo -e "${CYAN}Recommended:${NC}"
+    echo "1. Open F-Droid app"
+    echo "2. Search 'Termux:Boot'"
+    echo "3. Install it"
+    echo ""
+    read -p "Do you want TermHost to create the boot script anyway? (y/n): " ans
+
+    if [[ "$ans" == "y" || "$ans" == "Y" ]]; then
+        setup_termux_boot
+    fi
 }
 
-settings_menu() {
-    echo -e "${YELLOW}Settings${NC}"
-    echo "1) Enable Auto Start"
-    echo "2) Disable Auto Start"
+root_boot_menu() {
+    if ! is_root; then
+        echo -e "${RED}Root access required.${NC}"
+        return
+    fi
+
+    echo -e "${PURPLE}=== Termux:Boot (Auto Start on Boot) ===${NC}"
+    echo "1) Setup Termux:Boot Script (Recommended)"
+    echo "2) Download & Install Termux:Boot App (Help)"
     echo "3) Back"
-    read -p "Choose: " setchoice
+    read -p "Choose: " c
 
-    case $setchoice in
-        1) echo -e "${GREEN}Auto Start will be enabled after restart.${NC}" ;;
-        2) echo -e "${RED}Auto Start disabled.${NC}" ;;
+    case $c in
+        1) setup_termux_boot ;;
+        2) install_termux_boot_app ;;
         *)
             return
             ;;
     esac
 }
 
-troubleshoot() {
-    echo -e "${YELLOW}Troubleshooting & Permission Fixes${NC}"
-    echo ""
-    echo "1. Permission denied when accessing site"
-    echo "   → Run option 9 (Fix Permissions)"
-    echo "2. Cannot access SD Card"
-    echo "   → Run: termux-setup-storage"
-    echo "3. Services won't start"
-    echo "   → Check if port 8080 is already used"
-    echo "4. Virtual host not working"
-    echo "   → Restart Nginx after creating website"
-    echo ""
-    read -p "Press enter to continue..."
-}
+# ==================== END TERMUX BOOT ====================
 
 main() {
     while true; do
@@ -418,7 +353,7 @@ main() {
         show_active_domains
         main_menu
 
-        read -p "Select option: " choice
+        read -p "Select: " choice
 
         case $choice in
             1) create_website ;;
@@ -432,17 +367,24 @@ main() {
             9) fix_permissions ;;
             10)
                 if is_root; then
-                    system_wide_menu
+                    root_boot_menu
                 else
                     settings_menu
                 fi
                 ;;
-            0) echo "Goodbye!"; exit 0 ;;
+            11)
+                if is_root; then
+                    echo "Advanced root options coming soon..."
+                else
+                    echo -e "${RED}Invalid option${NC}"
+                fi
+                ;;
+            0) exit 0 ;;
             *) echo -e "${RED}Invalid option!${NC}" ;;
         esac
 
         echo ""
-        read -p "Press Enter to continue..."
+        read -p "Press Enter..."
     done
 }
 

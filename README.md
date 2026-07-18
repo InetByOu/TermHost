@@ -1,8 +1,8 @@
-# TermHost v2.6
+# TermHost v2.7
 
-> Termux Web Hosting Manager with Error Handling & Permission Fixes
+> Termux Web Hosting Manager with Termux:Boot Support
 
-## One Command Installation
+## Installation
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/install.sh | bash
@@ -13,21 +13,22 @@ Run:
 termhost
 ```
 
-## New in v2.6
+## Termux:Boot (Auto Start on Device Boot) - Root Only
 
-- Better error handling throughout the app
-- Dedicated **Fix Permissions** function (Menu 9)
-- Clear error messages when something fails
-- Improved permission checks when creating websites from SD Card
+For **root users**, TermHost now supports Termux:Boot:
+
+- Menu **10) Termux:Boot Setup**
+- Automatically creates boot script in `~/.termux/boot/`
+- Services will start automatically when device boots
+
+**Note:** You still need to install the Termux:Boot app from F-Droid manually for best compatibility.
 
 ## Features
 
-- Host from SD Card / Phone Storage
+- SD Card Hosting
 - Virtual Hosts
-- Auto Start
-- Ngrok + Cloudflare Tunnel
-- Root Support
-- Error Handling & Permission Management
+- Error Handling
+- Root + Termux:Boot Support
 
 ## Author
 InetByOu
