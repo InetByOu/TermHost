@@ -1,0 +1,6 @@
+{
+  "default_port": 8080,
+  "web_root": "~/termhost/sites",
+  "use_mariadb": true,
+  "php_version": "8.2"
+}
