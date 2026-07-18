@@ -1,12 +1,13 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v4.6 - Real-time Dashboard
+# TermHost v4.7 - Simple Update Feature
 
 CONFIG="$HOME/termhost/config/config.json"
 SITES_DIR="$HOME/termhost/sites"
 LOG_DIR="$HOME/termhost/logs"
 VHOST_DIR="$HOME/termhost/vhosts"
 STORAGE_DIR="$HOME/storage"
+INSTALL_DIR="$HOME/termhost"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -27,9 +28,9 @@ handle_error() {
 
 print_header() {
     if is_root; then
-        echo -e "${PURPLE}TermHost v4.6${NC} - Root Mode | Port: $(get_port)"
+        echo -e "${PURPLE}TermHost v4.7${NC} - Root Mode | Port: $(get_port)"
     else
-        echo -e "${BLUE}TermHost v4.6${NC} | Port: $(get_port)"
+        echo -e "${BLUE}TermHost v4.7${NC} | Port: $(get_port)"
     fi
     echo "===================================="
 }
@@ -104,14 +105,31 @@ show_menu() {
     echo "  3) List Websites           8) Database"
     echo "  4) Start Services          9) Fix Permissions"
     echo "  5) Stop Services          10) Change Port"
+    echo "  11) Update TermHost       0) Exit"
     
     if is_root; then
-        echo -e "  ${PURPLE}11) Termux:Boot${NC}          ${PURPLE}12) Swap Management${NC}"
+        echo -e "  ${PURPLE}12) Termux:Boot${NC}         ${PURPLE}13) Swap Management${NC}"
     fi
     
-    echo "  0) Exit"
     echo ""
-    echo -e "${CYAN}Press number to choose, or wait to refresh...${NC}"
+}
+
+update_termhost() {
+    echo -e "${YELLOW}Updating TermHost...${NC}"
+    
+    if [ -d "$INSTALL_DIR" ]; then
+        cd "$INSTALL_DIR" || return
+        if git pull; then
+            echo -e "${GREEN}TermHost updated successfully!${NC}"
+            echo -e "${YELLOW}Please restart TermHost to apply changes.${NC}"
+        else
+            echo -e "${RED}Failed to update. Check your internet connection.${NC}"
+        fi
+    else
+        echo -e "${RED}TermHost directory not found.${NC}"
+    fi
+    
+    read -p "Press enter to continue..."
 }
 
 show_dashboard() {
@@ -122,7 +140,6 @@ show_dashboard() {
         show_active_domains
         show_menu
 
-        # Wait for input with timeout (real-time feel)
         if read -t 4 -n 1 choice; then
             case $choice in
                 1) create_website; return ;;
@@ -131,37 +148,20 @@ show_dashboard() {
                 4) start_services; return ;;
                 5) stop_services; return ;;
                 6) setup_tunnel; return ;;
-                7) ;; # just refresh
+                7) ;; # refresh
                 8) database_menu; return ;;
                 9) fix_permissions; return ;;
+                10) change_port; return ;;
+                11) update_termhost; return ;;
                 0) echo "Goodbye!"; exit 0 ;;
-                *) ;; # invalid, refresh
+                *) ;; 
             esac
         fi
     done
 }
 
-change_port() {
-    local current_port=$(get_port)
-    echo -e "${YELLOW}Current Port: $current_port${NC}"
-    read -p "New port: " new_port
-
-    if ! [[ "$new_port" =~ ^[0-9]+$ ]]; then
-        handle_error "Invalid port"
-        return
-    fi
-
-    jq ".port = $new_port" "$CONFIG" > tmp.json && mv tmp.json "$CONFIG" 2>/dev/null || echo "{ \"port\": $new_port }" > "$CONFIG"
-    sed -i "s/listen .*;/listen       $new_port;/" $PREFIX/etc/nginx/nginx.conf
-
-    if pgrep nginx >/dev/null; then
-        nginx -s reload 2>/dev/null || true
-    fi
-
-    echo -e "${GREEN}Port changed to $new_port${NC}"
-}
-
-create_website() { ... }   # (keep previous functions)
+change_port() { ... }      # keep previous implementation
+create_website() { ... }
 create_from_storage() { ... }
 create_vhost() { ... }
 add_to_hosts() { ... }

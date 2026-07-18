@@ -1,6 +1,6 @@
-# TermHost v4.6
+# TermHost v4.7
 
-> Real-time Dashboard
+> Simple & User Friendly
 
 ## Installation
 
@@ -13,15 +13,22 @@ Run:
 termhost
 ```
 
-## Real-time Dashboard
+## Easy Update
 
-TermHost now features a **real-time updating dashboard**.
+No need to use `cd` and `git pull` manually.
 
-- Status automatically refreshes every 4 seconds
-- Active public URLs are shown live
-- You can still select menu options at any time
+Just open TermHost and choose:
+**Menu 11) Update TermHost**
 
-This gives a more modern and responsive CLI experience.
+TermHost will automatically update itself.
+
+## Features
+
+- Real-time Dashboard
+- Change Port
+- SD Card Hosting
+- Termux:Boot & Auto Swap (for Root)
+- Simple & User Friendly
 
 ## Author
 InetByOu
