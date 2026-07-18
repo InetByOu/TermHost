@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v4.7 - Simple Update + Real-time Dashboard
+# TermHost v4.8 - Smoother Real-time Dashboard
 
 CONFIG="$HOME/termhost/config/config.json"
 SITES_DIR="$HOME/termhost/sites"
@@ -23,14 +23,14 @@ get_port() { jq -r '.port // 8080' "$CONFIG" 2>/dev/null || echo 8080; }
 
 handle_error() {
     echo -e "${RED}[Error]${NC} $1"
-    sleep 1.5
+    sleep 1.2
 }
 
 print_header() {
     if is_root; then
-        echo -e "${PURPLE}TermHost v4.7${NC} - Root Mode | Port: $(get_port)"
+        echo -e "${PURPLE}TermHost v4.8${NC} - Root Mode | Port: $(get_port)"
     else
-        echo -e "${BLUE}TermHost v4.7${NC} | Port: $(get_port)"
+        echo -e "${BLUE}TermHost v4.8${NC} | Port: $(get_port)"
     fi
     echo "===================================="
 }
@@ -112,24 +112,7 @@ show_menu() {
     fi
     
     echo ""
-}
-
-update_termhost() {
-    echo -e "${YELLOW}Updating TermHost...${NC}"
-    
-    if [ -d "$INSTALL_DIR" ]; then
-        cd "$INSTALL_DIR" || return
-        if git pull; then
-            echo -e "${GREEN}TermHost updated successfully!${NC}"
-            echo -e "${YELLOW}Please restart TermHost to apply changes.${NC}"
-        else
-            echo -e "${RED}Failed to update. Check your internet.${NC}"
-        fi
-    else
-        echo -e "${RED}TermHost directory not found.${NC}"
-    fi
-    
-    read -p "Press enter to continue..."
+    echo -e "${CYAN}(Auto-refresh every 4 seconds. Press number to choose)${NC}"
 }
 
 show_dashboard() {
@@ -140,7 +123,8 @@ show_dashboard() {
         show_active_domains
         show_menu
 
-        if read -t 4 -n 1 choice; then
+        # Read input with timeout for real-time feel
+        if read -t 4 -n 1 choice 2>/dev/null; then
             case $choice in
                 1) create_website; return ;;
                 2) create_from_storage; return ;;
@@ -148,7 +132,7 @@ show_dashboard() {
                 4) start_services; return ;;
                 5) stop_services; return ;;
                 6) setup_tunnel; return ;;
-                7) ;; 
+                7) ;;  # manual refresh
                 8) database_menu; return ;;
                 9) fix_permissions; return ;;
                 10) change_port; return ;;
@@ -160,13 +144,28 @@ show_dashboard() {
     done
 }
 
+update_termhost() {
+    echo -e "${YELLOW}Updating TermHost...${NC}"
+    if [ -d "$INSTALL_DIR" ]; then
+        cd "$INSTALL_DIR" || return
+        if git pull; then
+            echo -e "${GREEN}Updated successfully! Restart TermHost to apply changes.${NC}"
+        else
+            echo -e "${RED}Update failed. Check internet connection.${NC}"
+        fi
+    else
+        echo -e "${RED}TermHost folder not found.${NC}"
+    fi
+    read -p "Press enter to continue..."
+}
+
 change_port() {
     local current_port=$(get_port)
     echo -e "${YELLOW}Current Port: $current_port${NC}"
     read -p "New port: " new_port
 
     if ! [[ "$new_port" =~ ^[0-9]+$ ]]; then
-        handle_error "Invalid port"
+        handle_error "Invalid port number"
         return
     fi
 
@@ -288,8 +287,13 @@ start_services() {
     stop_services
     sleep 1
 
-    php-fpm >/dev/null 2>&1 || handle_error "Failed to start PHP-FPM"
-    nginx >/dev/null 2>&1 || handle_error "Failed to start Nginx"
+    if ! php-fpm >/dev/null 2>&1; then
+        handle_error "Failed to start PHP-FPM"
+    fi
+
+    if ! nginx >/dev/null 2>&1; then
+        handle_error "Failed to start Nginx"
+    fi
 
     if [ "$(jq -r '.use_mariadb' $CONFIG 2>/dev/null)" = "true" ]; then
         mysqld_safe --datadir=$PREFIX/var/lib/mysql >/dev/null 2>&1 &
