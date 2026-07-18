@@ -1,48 +1,32 @@
-# TermHost
+# TermHost v2.4
 
-> Termux Web Hosting Manager
+> Termux Web Hosting Manager with Root Support
 
-Full-featured web hosting manager for Termux with Virtual Hosts, Auto Start, and easy public access.
-
-## One-Command Installation (Recommended)
+## One Command Installation
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/install.sh | bash
 ```
 
-Or using wget:
-
-```bash
-wget -qO- https://raw.githubusercontent.com/InetByOu/TermHost/main/install.sh | bash
-```
-
-After installation, simply run:
+After install, run:
 ```bash
 termhost
 ```
+
+## Root Support
+
+- Detects root during installation
+- Shows **ROOT mode** in menu
+- Extra options available only for root users
+- Some features require sudo/tsu
 
 ## Features
 
-- Proper Virtual Hosts (`http://namawebsite.localhost:8080`)
-- Auto Start when Termux opens
-- Ngrok, Cloudflare Tunnel, localhost.run
-- Interactive CLI menu
-- Database management
-- One-run installer
-
-## Manual Installation
-
-```bash
-git clone https://github.com/InetByOu/TermHost.git
-cd TermHost
-bash install.sh
-```
-
-## Usage
-
-```bash
-termhost
-```
+- Virtual Hosts
+- Auto Start
+- Ngrok / Cloudflare Tunnel
+- Database Management
+- Root-only advanced options
 
 ## Author
 InetByOu
