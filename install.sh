@@ -1,98 +1,95 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Smart Installer v3.6 - Stable & Robust
+# TermHost Installer v3.7 - Final Robust Version
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
 NC='\033[0m'
 
 INSTALL_DIR="$HOME/termhost"
 BIN_PATH="$PREFIX/bin/termhost"
 
 clear
-echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║           TermHost Smart Installer v3.6            ║${NC}"
-    echo -e "${BLUE}╚════════════════════════════════════════════════════════╝${NC}"
+echo -e "${BLUE}TermHost Installer v3.7${NC}"
+    echo "===================================="
     echo ""
 
-# Function to show status
-echo_status() {
-    echo -e "${YELLOW}[$1]${NC} $2... "
+# Function to print status
+echo_step() {
+    echo -e "${YELLOW}[$1]${NC} $2..."
 }
 
-echo_success() {
-    echo -e "${GREEN}Done${NC}"
+echo_ok() {
+    echo -e "${GREEN}OK${NC}"
 }
 
-echo_error() {
-    echo -e "${RED}Failed${NC}"
+echo_fail() {
+    echo -e "${RED}FAILED${NC}"
 }
 
-# ==================== FIX BROKEN DPKG ====================
-echo_status "1/8" "Fixing broken packages"
-(dpdk --configure -a && apt --fix-broken install -y) >> /dev/null 2>&1 || true
-echo_success
+# ==================== 1. FIX BROKEN DPKG ====================
+echo_step "1/8" "Fixing broken packages"
+dpkg --configure -a >> /dev/null 2>&1 || true
+apt --fix-broken install -y >> /dev/null 2>&1 || true
+echo_ok
 
-# ==================== UPDATE PACKAGES ====================
-echo_status "2/8" "Updating package list"
+# ==================== 2. UPDATE PACKAGES ====================
+echo_step "2/8" "Updating package repositories"
 pkg update -y >> /dev/null 2>&1 || true
-echo_success
+echo_ok
 
-# ==================== INSTALL PACKAGES ====================
-echo_status "3/8" "Installing required packages"
+# ==================== 3. INSTALL PACKAGES ====================
+echo_step "3/8" "Installing required packages"
 
-PACKAGES="nginx php-fpm php php-pdo git curl wget jq unzip mariadb"
-
-if pkg install -y $PACKAGES >> /dev/null 2>&1; then
-    echo_success
+if pkg install -y nginx php-fpm php php-pdo git curl wget jq unzip mariadb >> /dev/null 2>&1; then
+    echo_ok
 else
-    echo_error
-    echo -e "${YELLOW}Trying to fix dpkg and retry...${NC}"
+    echo_fail
+    echo -e "${YELLOW}Trying to recover...${NC}"
     dpkg --configure -a >> /dev/null 2>&1 || true
     apt --fix-broken install -y >> /dev/null 2>&1 || true
     
-    if pkg install -y $PACKAGES >> /dev/null 2>&1; then
-        echo_success
+    if pkg install -y nginx php-fpm php php-pdo git curl wget jq unzip mariadb >> /dev/null 2>&1; then
+        echo_ok
     else
-        echo -e "${RED}Failed to install packages. Please run manually:${NC}"
-        echo "pkg install -y $PACKAGES"
+        echo -e "${RED}Failed to install packages.${NC}"
+        echo "Please run manually: pkg install -y nginx php-fpm php php-pdo git curl wget jq unzip mariadb"
         exit 1
     fi
 fi
 
-# ==================== CLONE / UPDATE REPO ====================
-echo_status "4/8" "Setting up TermHost directory"
+# ==================== 4. CLONE / UPDATE REPO ====================
+echo_step "4/8" "Downloading TermHost"
 
 if [ -d "$INSTALL_DIR" ]; then
     cd "$INSTALL_DIR" && git pull >> /dev/null 2>&1 || true
 else
     if ! git clone https://github.com/InetByOu/TermHost.git "$INSTALL_DIR" >> /dev/null 2>&1; then
-        echo_error
-        echo -e "${RED}Failed to clone repository. Check your internet connection.${NC}"
+        echo_fail
+        echo -e "${RED}Failed to download TermHost. Check your internet.${NC}"
         exit 1
     fi
 fi
-echo_success
+echo_ok
 
-# Check if termhost.sh exists
+# Critical check: termhost.sh must exist
 if [ ! -f "$INSTALL_DIR/termhost.sh" ]; then
-    echo -e "${RED}Error: termhost.sh not found after cloning!${NC}"
-    echo -e "Please report this issue."
+    echo -e "${RED}Critical Error: termhost.sh was not found after download!${NC}"
+    echo -e "Please report this bug."
     exit 1
 fi
 
-# ==================== CREATE DIRECTORIES ====================
-echo_status "5/8" "Creating directories"
+# ==================== 5. CREATE DIRECTORIES ====================
+echo_step "5/8" "Creating directories"
 mkdir -p "$INSTALL_DIR/sites/default" "$INSTALL_DIR/vhosts" "$INSTALL_DIR/logs" "$INSTALL_DIR/config"
 mkdir -p "$PREFIX/etc/nginx" "$PREFIX/etc/php-fpm.d"
-echo_success
+echo_ok
 
-# ==================== CREATE CONFIG ====================
-echo_status "6/8" "Creating default configuration"
+# ==================== 6. CREATE CONFIG ====================
+echo_step "6/8" "Creating default configuration"
 
 if [ ! -f "$INSTALL_DIR/config/config.json" ]; then
 cat > "$INSTALL_DIR/config/config.json" << 'EOF'
@@ -102,10 +99,10 @@ cat > "$INSTALL_DIR/config/config.json" << 'EOF'
 }
 EOF
 fi
-echo_success
+echo_ok
 
-# ==================== CONFIGURE SERVICES ====================
-echo_status "7/8" "Configuring Nginx and PHP-FPM"
+# ==================== 7. CONFIGURE SERVICES ====================
+echo_step "7/8" "Configuring Nginx and PHP-FPM"
 
 cat > $PREFIX/etc/php-fpm.d/www.conf << 'PHPEOF'
 [www]
@@ -151,14 +148,14 @@ NGINXEOF
 cat > "$INSTALL_DIR/sites/default/index.php" << 'EOF'
 <?php echo "TermHost is ready!"; ?>
 EOF
-echo_success
+echo_ok
 
-# ==================== CREATE BINARY ====================
-echo_status "8/8" "Creating 'termhost' command"
+# ==================== 8. CREATE BINARY ====================
+echo_step "8/8" "Creating termhost command"
 chmod +x "$INSTALL_DIR/termhost.sh"
 if [ -L "$BIN_PATH" ]; then rm -f "$BIN_PATH"; fi
 ln -s "$INSTALL_DIR/termhost.sh" "$BIN_PATH"
-echo_success
+echo_ok
 
 # ==================== START SERVICES ====================
 echo -e "${YELLOW}Starting services...${NC}"
@@ -174,11 +171,8 @@ if [ "$(jq -r '.use_mariadb' $INSTALL_DIR/config/config.json 2>/dev/null)" = "tr
 fi
 
 echo ""
-echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║     TermHost installed successfully!               ║${NC}"
-    echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-    echo -e "You can now run: ${YELLOW}termhost${NC}"
-    if [ "$(id -u)" -eq 0 ]; then
-        echo -e "${PURPLE}Running as ROOT - Extra features enabled.${NC}"
-    fi
+echo -e "${GREEN}Installation completed successfully!${NC}"
+echo -e "Run: ${YELLOW}termhost${NC}"
+if [ "$(id -u)" -eq 0 ]; then
+    echo -e "${PURPLE}Running as ROOT - Extra features enabled.${NC}"
+fi
