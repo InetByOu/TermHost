@@ -1,10 +1,11 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v2.1 - Full Interactive Web Hosting Manager
+# TermHost v2.2 - With Proper Virtual Hosts
 
 CONFIG="$HOME/termhost/config/config.json"
 SITES_DIR="$HOME/termhost/sites"
 LOG_DIR="$HOME/termhost/logs"
+VHOST_DIR="$HOME/termhost/vhosts"
 NGINX_CONF="$PREFIX/etc/nginx/nginx.conf"
 
 RED='\033[0;31m'
@@ -17,7 +18,7 @@ NC='\033[0m'
 print_header() {
     clear
     echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║           TermHost v2.1 - Web Hosting Manager          ║${NC}"
+    echo -e "${BLUE}║         TermHost v2.2 - Virtual Host Support           ║${NC}"
     echo -e "${BLUE}╚════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -26,7 +27,7 @@ show_status() {
     echo -e "${CYAN}=== Service Status ===${NC}"
     
     if pgrep -x nginx >/dev/null; then
-        echo -e "Nginx      : ${GREEN}● Running${NC} (http://localhost:8080)"
+        echo -e "Nginx      : ${GREEN}● Running${NC} (Virtual Hosts Enabled)"
     else
         echo -e "Nginx      : ${RED}● Stopped${NC}"
     fi
@@ -64,31 +65,68 @@ show_active_domains() {
         url=$(grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare.com' $LOG_DIR/cloudflare.log | tail -1)
         [ ! -z "$url" ] && echo -e "Cloudflare : ${GREEN}$url${NC}"
     fi
-
-    if [ -f $LOG_DIR/localhostrun.log ]; then
-        url=$(grep -o 'https://[a-zA-Z0-9-]*\.lhr.life' $LOG_DIR/localhostrun.log | tail -1)
-        [ ! -z "$url" ] && echo -e "localhost.run: ${GREEN}$url${NC}"
-    fi
     echo ""
 }
 
 main_menu() {
     echo -e "${YELLOW}Main Menu:${NC}"
-    echo "  1) Create New Website"
+    echo "  1) Create New Website (Virtual Host)"
     echo "  2) List All Websites"
     echo "  3) Start All Services"
     echo "  4) Stop All Services"
-    echo "  5) Setup Online Tunnel (Ngrok / Cloudflare)"
+    echo "  5) Setup Online Tunnel"
     echo "  6) View Status & Active Public URLs"
     echo "  7) Database Management"
-    echo "  8) Troubleshooting & Common Solutions"
+    echo "  8) Troubleshooting & Solutions"
     echo "  9) Settings"
     echo "  0) Exit"
     echo ""
 }
 
+# Create Nginx Virtual Host config
+create_vhost() {
+    local name=$1
+    local vhost_file="$VHOST_DIR/$name.conf"
+
+    mkdir -p "$VHOST_DIR"
+
+    cat > "$vhost_file" << EOF
+server {
+    listen 8080;
+    server_name $name.localhost;
+
+    root $SITES_DIR/$name;
+    index index.php index.html;
+
+    location / {
+        try_files \$uri \$uri/ /index.php?\$args;
+    }
+
+    location ~ \\.php\$ {
+        fastcgi_pass 127.0.0.1:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        include fastcgi_params;
+    }
+}
+EOF
+
+    echo -e "${GREEN}Virtual host created for $name.localhost${NC}"
+}
+
+# Add domain to Termux hosts file
+add_to_hosts() {
+    local name=$1
+    local hosts_file="$PREFIX/etc/hosts"
+
+    if ! grep -q "$name.localhost" "$hosts_file" 2>/dev/null; then
+        echo "127.0.0.1 $name.localhost" >> "$hosts_file"
+        echo -e "${GREEN}Added $name.localhost to hosts file${NC}"
+    fi
+}
+
 create_website() {
-    echo -e "${YELLOW}Create New Website${NC}"
+    echo -e "${YELLOW}Create New Website with Virtual Host${NC}"
     read -p "Website name (example: mysite): " name
 
     if [ -z "$name" ]; then
@@ -104,31 +142,34 @@ create_website() {
 
     mkdir -p "$site_path"
 
-    # Create index.php
+    # Create sample index.php
     cat > "$site_path/index.php" << EOF
 <?php
     echo "<h1>Welcome to $name</h1>";
-    echo "<p>Hosted with TermHost</p>";
+    echo "<p>TermHost Virtual Host is working!</p>";
 ?>
 EOF
 
-    # Create .htaccess example
-    cat > "$site_path/.htaccess" << 'EOF'
-RewriteEngine On
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ index.php [QSA,L]
-EOF
+    # Create virtual host config
+    create_vhost "$name"
 
-    echo -e "${GREEN}Website '$name' created successfully!${NC}"
-    echo -e "Access it at: ${CYAN}http://localhost:8080/$name/${NC}"
+    # Add to hosts file
+    add_to_hosts "$name"
+
+    # Reload nginx config
+    if pgrep nginx >/dev/null; then
+        nginx -s reload 2>/dev/null || echo -e "${YELLOW}Please restart Nginx to apply changes.${NC}"
+    fi
+
+    echo -e "${GREEN}Website created successfully!${NC}"
+    echo -e "Access it at: ${CYAN}http://$name.localhost:8080${NC}"
 }
 
 list_websites() {
-    echo -e "${YELLOW}Your Websites:${NC}"
+    echo -e "${YELLOW}Your Websites (Virtual Hosts):${NC}"
     if [ -d "$SITES_DIR" ]; then
         ls -1 "$SITES_DIR" | while read site; do
-            echo -e "  ${GREEN}→${NC} $site   (${CYAN}http://localhost:8080/$site/${NC})"
+            echo -e "  ${GREEN}→${NC} $site   →  ${CYAN}http://$site.localhost:8080${NC}"
         done
     else
         echo "No websites found."
@@ -165,25 +206,25 @@ setup_tunnel() {
     echo ""
     echo "1) Ngrok (with your token) - Recommended"
     echo "2) Ngrok (free without token)"
-    echo "3) Cloudflare Tunnel (quick free tunnel)"
-    echo "4) Cloudflare Tunnel (with token + custom domain)"
-    echo "5) localhost.run (quick & free)"
+    echo "3) Cloudflare Tunnel (quick free)"
+    echo "4) Cloudflare Tunnel (with token)"
+    echo "5) localhost.run"
     echo "6) Back"
     echo ""
     read -p "Choose option: " opt
 
     case $opt in
         1)
-            read -p "Enter Ngrok Authtoken: " token
+            read -p "Ngrok Authtoken: " token
             ngrok config add-authtoken "$token" 2>/dev/null
             pkill ngrok 2>/dev/null || true
             ngrok http 8080 > $LOG_DIR/ngrok.log 2>&1 &
-            echo -e "${GREEN}Ngrok started with token!${NC}"
+            echo -e "${GREEN}Ngrok started!${NC}"
             ;;
         2)
             pkill ngrok 2>/dev/null || true
             ngrok http 8080 > $LOG_DIR/ngrok.log 2>&1 &
-            echo -e "${YELLOW}Ngrok started (free tier)${NC}"
+            echo -e "${YELLOW}Ngrok started (free)${NC}"
             ;;
         3)
             pkg install cloudflared -y 2>/dev/null
@@ -212,19 +253,19 @@ setup_tunnel() {
 database_menu() {
     echo -e "${YELLOW}Database Management${NC}"
     echo "1) Create New Database"
-    echo "2) List Databases"
+    echo "2) List All Databases"
     echo "3) Back"
     read -p "Choose: " dbchoice
 
     case $dbchoice in
         1)
             read -p "Database name: " dbname
-            mysql -u root -e "CREATE DATABASE IF NOT EXISTS \"$dbname\";" 2>/dev/null || echo -e "${RED}Failed. Make sure MariaDB is running.${NC}"
-            echo -e "${GREEN}Database created (or already exists).${NC}"
+            mysql -u root -e "CREATE DATABASE IF NOT EXISTS \"$dbname\";" 2>/dev/null || echo -e "${RED}Failed. Is MariaDB running?${NC}"
+            echo -e "${GREEN}Database created successfully.${NC}"
             ;;
         2)
-            echo -e "${CYAN}Databases:${NC}"
-            mysql -u root -e "SHOW DATABASES;" 2>/dev/null || echo "MariaDB not running or no access."
+            echo -e "${CYAN}Available Databases:${NC}"
+            mysql -u root -e "SHOW DATABASES;" 2>/dev/null || echo "MariaDB not running."
             ;;
         *)
             return
@@ -235,22 +276,18 @@ database_menu() {
 troubleshoot() {
     echo -e "${YELLOW}Common Problems & Solutions${NC}"
     echo ""
-    echo "${RED}1. Port 8080 already in use${NC}"
-    echo "   → pkill nginx && pkill php-fpm"
+    echo "${RED}1. Virtual host not working${NC}"
+    echo "   → Make sure you restarted Nginx after creating site"
+    echo "   → Try accessing: http://namawebsite.localhost:8080"
     echo ""
-    echo "${RED}2. PHP not working / blank page${NC}"
-    echo "   → Make sure php-fpm is running"
-    echo "   → Check file has .php extension"
+    echo "${RED}2. PHP not working${NC}"
+    echo "   → Restart PHP-FPM and Nginx"
     echo ""
     echo "${RED}3. Permission denied${NC}"
     echo "   → chmod -R 755 ~/termhost/sites"
     echo ""
-    echo "${RED}4. MariaDB cannot start${NC}"
+    echo "${RED}4. MariaDB error${NC}"
     echo "   → Run: mariadb-install-db --user=$(whoami)"
-    echo ""
-    echo "${RED}5. Tunnel not showing URL${NC}"
-    echo "   → Wait 5-10 seconds then check again"
-    echo "   → Or restart the tunnel option"
     echo ""
     read -p "Press enter to continue..."
 }
@@ -273,7 +310,7 @@ main() {
             6) show_status; show_active_domains ;;
             7) database_menu ;;
             8) troubleshoot ;;
-            9) echo "Settings will be added in next update" ;;
+            9) echo "Settings coming in next update" ;;
             0) echo "Thank you for using TermHost!"; exit 0 ;;
             *) echo -e "${RED}Invalid option!${NC}" ;;
         esac

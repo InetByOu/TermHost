@@ -1,24 +1,29 @@
-# TermHost v2.1
+# TermHost v2.2
 
-> Termux Web Hosting Manager - Full Interactive Version
+> Termux Web Hosting Manager with Virtual Host Support
 
-Powerful tool to run web hosting (Nginx + PHP-FPM + MariaDB) directly from Termux with easy public access via tunnels.
+Full-featured web hosting manager for Termux with proper Nginx virtual hosts.
 
 ## Features
 
-- One command installer
-- Beautiful interactive CLI menu
-- Create unlimited websites
-- Each website accessible at `http://localhost:8080/namawebsite/`
-- Start/Stop all services easily
-- Multiple public hosting options:
-  - Ngrok (with token & free)
-  - Cloudflare Tunnel (quick + with custom domain)
-  - localhost.run
-- Shows active public URLs automatically
+- One-run installer (Nginx + PHP-FPM + MariaDB)
+- **Proper Virtual Hosts** - Access sites via `http://namawebsite.localhost:8080`
+- Create unlimited websites with virtual host
+- Interactive CLI menu
+- Multiple tunneling options (Ngrok, Cloudflare Tunnel, localhost.run)
+- Shows active public URLs
 - Basic database management
-- Built-in troubleshooting guide
-- Ready to use & stable
+- Built-in troubleshooting
+
+## How Virtual Host Works
+
+When you create a website named `mysite`, you can access it at:
+
+```
+http://mysite.localhost:8080
+```
+
+This is much cleaner than using subfolders.
 
 ## Quick Start
 
@@ -29,22 +34,5 @@ bash install.sh
 bash termhost.sh
 ```
 
-## How to Access Your Websites
-
-After creating a website named `mysite`, open in browser:
-```
-http://localhost:8080/mysite/
-```
-
-## Online Access (Public URL)
-
-Use menu **5) Setup Online Tunnel** to get public URL using:
-- Ngrok
-- Cloudflare Tunnel
-- localhost.run
-
 ## Author
 InetByOu
-
-## License
-MIT
