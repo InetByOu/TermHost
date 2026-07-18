@@ -20,7 +20,7 @@ Just choose **Menu 11) Update TermHost** inside the app.
 
 ## Uninstallation
 
-To completely remove TermHost, run:
+Run the uninstaller:
 
 ```bash
 bash ~/termhost/uninstall.sh
@@ -32,11 +32,13 @@ Or:
 curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/uninstall.sh | bash
 ```
 
-The uninstaller will:
-- Stop all services
-- Remove the `termhost` command
-- Optionally delete the TermHost folder
-- Optionally restore default Nginx/PHP-FPM config
+### Uninstall Options:
+
+1. **Minimal Uninstall** — Only removes the `termhost` command
+2. **Full Purge** — Removes everything (including the TermHost folder)
+3. **Custom Uninstall** — Choose what you want to remove
+
+The uninstaller will stop all services and guide you through the options.
 
 ## Features
 
