@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Installer v3.8 - Ensure Download from GitHub
+# TermHost Installer v3.9 - Full Repository Download
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,7 +13,7 @@ INSTALL_DIR="$HOME/termhost"
 BIN_PATH="$PREFIX/bin/termhost"
 
 clear
-echo -e "${BLUE}TermHost Installer v3.8${NC}"
+echo -e "${BLUE}TermHost Installer v3.9${NC}"
     echo "===================================="
     echo ""
 
@@ -61,32 +61,38 @@ else
     fi
 fi
 
-# ==================== 4. DOWNLOAD FROM GITHUB ====================
-echo_step "4/8" "Downloading TermHost from GitHub"
+# ==================== 4. DOWNLOAD FULL REPOSITORY FROM GITHUB ====================
+echo_step "4/8" "Downloading full TermHost project from GitHub"
+
+echo -e "${CYAN}This will download termhost.sh + all supporting directories (sites, vhosts, config, logs, etc.)${NC}"
 
 if [ -d "$INSTALL_DIR" ]; then
-    echo -e "${YELLOW}TermHost folder already exists. Updating...${NC}"
+    echo -e "${YELLOW}Updating existing installation...${NC}"
     cd "$INSTALL_DIR" && git pull >> /dev/null 2>&1 || true
 else
-    echo -e "${CYAN}Cloning from GitHub...${NC}"
     if ! git clone https://github.com/InetByOu/TermHost.git "$INSTALL_DIR" >> /dev/null 2>&1; then
         echo_fail
         echo -e "${RED}Failed to download from GitHub.${NC}"
-        echo -e "Please check your internet connection and try again."
+        echo -e "Please check your internet connection."
         exit 1
     fi
 fi
 echo_ok
 
-# Critical safety check
+# Verify that termhost.sh exists
 if [ ! -f "$INSTALL_DIR/termhost.sh" ]; then
     echo -e "${RED}Critical Error: termhost.sh was not downloaded from GitHub!${NC}"
-    echo -e "The installation cannot continue."
+    exit 1
+fi
+
+# Verify supporting directories exist
+if [ ! -d "$INSTALL_DIR/sites" ] || [ ! -d "$INSTALL_DIR/config" ]; then
+    echo -e "${RED}Critical Error: Supporting directories were not downloaded properly!${NC}"
     exit 1
 fi
 
 # ==================== 5. CREATE DIRECTORIES ====================
-echo_step "5/8" "Creating directories"
+echo_step "5/8" "Creating additional directories"
 mkdir -p "$INSTALL_DIR/sites/default" "$INSTALL_DIR/vhosts" "$INSTALL_DIR/logs" "$INSTALL_DIR/config"
 mkdir -p "$PREFIX/etc/nginx" "$PREFIX/etc/php-fpm.d"
 echo_ok
