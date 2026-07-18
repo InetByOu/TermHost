@@ -1,6 +1,6 @@
-# TermHost v2.8
+# TermHost v2.9
 
-> Termux Web Hosting Manager with Configurable Termux:Boot
+> Termux Web Hosting Manager with Auto Swap for Low RAM
 
 ## One Command Installation
 
@@ -8,24 +8,22 @@
 curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/install.sh | bash
 ```
 
-## Termux:Boot (Root Only)
+## Auto Swap for Low RAM (Root Only)
 
-Root users can now configure exactly which services to start on device boot:
+If TermHost detects RAM < 2GB on a root device, it will offer to:
 
-- Nginx
-- PHP-FPM
-- MariaDB
-- Ngrok Tunnel
-- Cloudflare Tunnel
+- Create a swap file automatically
+- Enable swap on boot using **Magisk service** (preferred) or **Termux:Boot**
 
-Go to menu **10) Termux:Boot Setup** → Choose services one by one.
+Go to menu **11) Swap Management** to manage this manually.
 
 ## Features
 
 - SD Card Hosting
 - Virtual Hosts
-- Error Handling + Permission Fix
-- Root + Configurable Termux:Boot
+- Error Handling
+- Root + Termux:Boot
+- Auto Swap for Low RAM Devices
 
 ## Author
 InetByOu
