@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Uninstaller
+# TermHost Uninstaller v2 - Interactive
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -16,11 +16,11 @@ echo -e "${BLUE}TermHost Uninstaller${NC}"
     echo "===================================="
     echo ""
 
-echo -e "${YELLOW}This will remove TermHost from your system.${NC}"
+echo -e "${YELLOW}This script will help you uninstall TermHost safely.${NC}"
     echo ""
 
-# Stop all services
-    echo -e "${YELLOW}Stopping all services...${NC}"
+# Stop services
+    echo -e "${YELLOW}Stopping all running services...${NC}"
     pkill nginx 2>/dev/null || true
     pkill php-fpm 2>/dev/null || true
     pkill mysqld 2>/dev/null || true
@@ -31,44 +31,67 @@ echo -e "${YELLOW}This will remove TermHost from your system.${NC}"
 
 # Remove binary
     if [ -L "$BIN_PATH" ]; then
-        echo -e "${YELLOW}Removing termhost command...${NC}"
+        echo -e "${YELLOW}Removing 'termhost' command...${NC}"
         rm -f "$BIN_PATH"
-        echo -e "${GREEN}Command removed.${NC}"
+        echo -e "${GREEN}Done.${NC}"
     fi
     echo ""
 
-# Ask about removing the repository
-    read -p "Do you want to remove the TermHost folder (~/termhost)? [y/N]: " remove_repo
+# Interactive options
+echo -e "${YELLOW}What would you like to do?${NC}"
+    echo "1) Minimal Uninstall (only remove command)"
+    echo "2) Full Purge (remove everything including TermHost folder)"
+    echo "3) Custom Uninstall (choose what to remove)"
+    echo "0) Cancel"
+    echo ""
 
-    if [[ "$remove_repo" =~ ^[Yy]$ ]]; then
+read -p "Choose option [0-3]: " choice
+
+case $choice in
+    1)
+        echo -e "${GREEN}Minimal uninstall completed.${NC}"
+        ;;
+
+    2)
+        echo -e "${YELLOW}Performing full purge...${NC}"
         if [ -d "$INSTALL_DIR" ]; then
-            echo -e "${YELLOW}Removing TermHost directory...${NC}"
             rm -rf "$INSTALL_DIR"
-            echo -e "${GREEN}TermHost directory removed.${NC}"
+            echo -e "${GREEN}TermHost folder removed.${NC}"
         fi
-    else
-        echo -e "${YELLOW}Keeping TermHost directory.${NC}"
-    fi
-    echo ""
+        ;;
 
-# Ask about restoring default Nginx/PHP-FPM config
-    read -p "Do you want to restore default Nginx & PHP-FPM config? [y/N]: " restore_config
+    3)
+        echo ""
+        read -p "Remove TermHost folder (~/termhost)? [y/N]: " remove_folder
+        if [[ "$remove_folder" =~ ^[Yy]$ ]]; then
+            if [ -d "$INSTALL_DIR" ]; then
+                rm -rf "$INSTALL_DIR"
+                echo -e "${GREEN}TermHost folder removed.${NC}"
+            fi
+        fi
 
-    if [[ "$restore_config" =~ ^[Yy]$ ]]; then
-        echo -e "${YELLOW}Restoring default configurations...${NC}"
+        echo ""
+        read -p "Restore default Nginx & PHP-FPM config? [y/N]: " restore_cfg
+        if [[ "$restore_cfg" =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}Restoring default configs...${NC}"
+            [ -f $PREFIX/etc/nginx/nginx.conf ] && cp $PREFIX/etc/nginx/nginx.conf $PREFIX/etc/nginx/nginx.conf.bak 2>/dev/null
+            [ -f $PREFIX/etc/php-fpm.d/www.conf ] && cp $PREFIX/etc/php-fpm.d/www.conf $PREFIX/etc/php-fpm.d/www.conf.bak 2>/dev/null
 
-        # Backup current configs
-        [ -f $PREFIX/etc/nginx/nginx.conf ] && cp $PREFIX/etc/nginx/nginx.conf $PREFIX/etc/nginx/nginx.conf.bak 2>/dev/null
-        [ -f $PREFIX/etc/php-fpm.d/www.conf ] && cp $PREFIX/etc/php-fpm.d/www.conf $PREFIX/etc/php-fpm.d/www.conf.bak 2>/dev/null
+            rm -f $PREFIX/etc/nginx/nginx.conf
+            rm -f $PREFIX/etc/php-fpm.d/www.conf
+            echo -e "${GREEN}Default configs restored (backups created).${NC}"
+        fi
+        ;;
 
-        # Remove TermHost specific configs (they will be regenerated on reinstall)
-        rm -f $PREFIX/etc/nginx/nginx.conf
-        rm -f $PREFIX/etc/php-fpm.d/www.conf
+    0)
+        echo -e "${YELLOW}Uninstall cancelled.${NC}"
+        exit 0
+        ;;
+    *)
+        echo -e "${RED}Invalid option.${NC}"
+        ;;
+esac
 
-        echo -e "${GREEN}Default configurations restored (backups created).${NC}"
-    fi
-
-    echo ""
-    echo -e "${GREEN}TermHost has been uninstalled.${NC}"
-    echo -e "Thank you for using TermHost!"
+echo ""
+echo -e "${GREEN}Thank you for using TermHost!${NC}"
     echo ""
