@@ -1,6 +1,6 @@
-# TermHost v2.9
+# TermHost v3.0
 
-> Termux Web Hosting Manager with Auto Swap for Low RAM
+> Minimalist Terminal UI
 
 ## One Command Installation
 
@@ -8,14 +8,16 @@
 curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/install.sh | bash
 ```
 
-## Auto Swap for Low RAM (Root Only)
+Run:
+```bash
+termhost
+```
 
-If TermHost detects RAM < 2GB on a root device, it will offer to:
+## UI Changes (v3.0)
 
-- Create a swap file automatically
-- Enable swap on boot using **Magisk service** (preferred) or **Termux:Boot**
-
-Go to menu **11) Swap Management** to manage this manually.
+- More minimalist design
+- Removed decorative borders
+- Cleaner and simpler terminal interface
 
 ## Features
 
@@ -23,7 +25,7 @@ Go to menu **11) Swap Management** to manage this manually.
 - Virtual Hosts
 - Error Handling
 - Root + Termux:Boot
-- Auto Swap for Low RAM Devices
+- Auto Swap for Low RAM
 
 ## Author
 InetByOu

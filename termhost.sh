@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v2.9 - Auto Swap for Low RAM (Root + Magisk)
+# TermHost v3.0 - Minimalist UI
 
 CONFIG="$HOME/termhost/config/config.json"
 SITES_DIR="$HOME/termhost/sites"
@@ -35,73 +35,70 @@ get_total_ram_mb() {
 }
 
 handle_error() {
-    echo -e "${RED}Error: $1${NC}"
+    echo -e "${RED}[Error]${NC} $1"
     read -p "Press enter to continue..."
 }
 
 print_header() {
     clear
     if is_root; then
-        echo -e "${PURPLE}╔════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${PURPLE}║   TermHost v2.9 - Root + Auto Swap (Low RAM)       ║${NC}"
-        echo -e "${PURPLE}╚════════════════════════════════════════════════════════╝${NC}"
+        echo -e "${PURPLE}TermHost v3.0${NC} - Root Mode"
     else
-        echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${BLUE}║           TermHost v2.9 - Web Hosting Manager        ║${NC}"
-        echo -e "${BLUE}╚════════════════════════════════════════════════════════╝${NC}"
+        echo -e "${BLUE}TermHost v3.0${NC}"
     fi
+    echo "===================================="
     echo ""
 }
 
 show_status() {
-    echo -e "${CYAN}=== Service Status ===${NC}"
+    echo -e "${CYAN}Service Status:${NC}"
     
     if pgrep -x nginx >/dev/null; then
-        echo -e "Nginx      : ${GREEN}● Running${NC}"
+        echo -e "  Nginx      : ${GREEN}Running${NC}"
     else
-        echo -e "Nginx      : ${RED}● Stopped${NC}"
+        echo -e "  Nginx      : ${RED}Stopped${NC}"
     fi
 
     if pgrep -x php-fpm >/dev/null; then
-        echo -e "PHP-FPM    : ${GREEN}● Running${NC}"
+        echo -e "  PHP-FPM    : ${GREEN}Running${NC}"
     else
-        echo -e "PHP-FPM    : ${RED}● Stopped${NC}"
+        echo -e "  PHP-FPM    : ${RED}Stopped${NC}"
     fi
 
     if pgrep -x mysqld >/dev/null; then
-        echo -e "MariaDB    : ${GREEN}● Running${NC}"
+        echo -e "  MariaDB    : ${GREEN}Running${NC}"
     else
-        echo -e "MariaDB    : ${RED}● Stopped${NC}"
+        echo -e "  MariaDB    : ${RED}Stopped${NC}"
     fi
 
     if is_root; then
-        echo -e "Mode       : ${PURPLE}ROOT${NC}"
+        echo -e "  Mode       : ${PURPLE}ROOT${NC}"
     else
-        echo -e "Mode       : ${CYAN}Normal User${NC}"
+        echo -e "  Mode       : ${CYAN}Normal User${NC}"
     fi
 
     if has_storage; then
-        echo -e "Storage    : ${GREEN}● Available${NC}"
+        echo -e "  Storage    : ${GREEN}Available${NC}"
     else
-        echo -e "Storage    : ${YELLOW}● Not Setup${NC}"
+        echo -e "  Storage    : ${YELLOW}Not Setup${NC}"
     fi
 
     local ram=$(get_total_ram_mb)
-    echo -e "RAM        : ${CYAN}${ram} MB${NC}"
+    echo -e "  RAM        : ${ram} MB"
     echo ""
 }
 
 show_active_domains() {
-    echo -e "${CYAN}=== Active Public URLs ===${NC}"
+    echo -e "${CYAN}Active Public URLs:${NC}"
     
     if [ -f $LOG_DIR/ngrok.log ]; then
         url=$(grep -o 'https://[a-zA-Z0-9-]*\.ngrok.io' $LOG_DIR/ngrok.log | tail -1)
-        [ ! -z "$url" ] && echo -e "Ngrok      : ${GREEN}$url${NC}"
+        [ ! -z "$url" ] && echo -e "  Ngrok      : ${GREEN}$url${NC}"
     fi
 
     if [ -f $LOG_DIR/cloudflare.log ]; then
         url=$(grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare.com' $LOG_DIR/cloudflare.log | tail -1)
-        [ ! -z "$url" ] && echo -e "Cloudflare : ${GREEN}$url${NC}"
+        [ ! -z "$url" ] && echo -e "  Cloudflare : ${GREEN}$url${NC}"
     fi
     echo ""
 }
@@ -211,9 +208,11 @@ add_to_hosts() {
 }
 
 list_websites() {
+    echo -e "${YELLOW}Your Websites:${NC}"
     ls "$SITES_DIR" 2>/dev/null | while read s; do
         echo "  → $s → http://$s.localhost:8080"
     done
+    echo ""
 }
 
 start_services() {
@@ -251,16 +250,16 @@ fix_permissions() {
     echo -e "${GREEN}Permissions fixed.${NC}"
 }
 
-# ==================== AUTO SWAP FOR LOW RAM ====================
+# ==================== AUTO SWAP ====================
 create_swap() {
-    local swap_size_mb=1024   # Default 1GB swap
+    local swap_size_mb=1024
 
     if [ -f "$SWAP_FILE" ]; then
         echo -e "${YELLOW}Swap file already exists.${NC}"
         return
     fi
 
-    echo -e "${YELLOW}Creating ${swap_size_mb}MB swap file...${NC}"
+    echo -e "${YELLOW}Creating swap file...${NC}"
 
     if ! dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$swap_size_mb status=progress 2>/dev/null; then
         handle_error "Failed to create swap file"
@@ -271,76 +270,57 @@ create_swap() {
     mkswap "$SWAP_FILE" >/dev/null 2>&1
     swapon "$SWAP_FILE" 2>/dev/null || true
 
-    echo -e "${GREEN}Swap file created and activated: $SWAP_FILE${NC}"
+    echo -e "${GREEN}Swap created: $SWAP_FILE${NC}"
 }
 
-# Enable swap on boot via Magisk or Termux Boot
 enable_swap_on_boot() {
     if has_magisk; then
-        echo -e "${GREEN}Magisk detected. Creating Magisk service...${NC}"
-
         mkdir -p /data/adb/service.d
         cat > /data/adb/service.d/termhost_swap.sh << 'MAGISKEOF'
 #!/system/bin/sh
-# TermHost - Auto enable swap on boot (Magisk)
-
 SWAP_FILE="/data/swapfile"
-
 if [ -f "$SWAP_FILE" ]; then
     swapon "$SWAP_FILE" 2>/dev/null || true
 fi
 MAGISKEOF
-
         chmod 755 /data/adb/service.d/termhost_swap.sh
         echo -e "${GREEN}Magisk service created for swap.${NC}"
-
     else
-        echo -e "${YELLOW}Magisk not detected. Adding to Termux:Boot instead...${NC}"
-
         mkdir -p "$BOOT_DIR"
         echo "swapon $SWAP_FILE 2>/dev/null || true" >> "$BOOT_DIR/start-termhost.sh"
         chmod +x "$BOOT_DIR/start-termhost.sh"
-
-        echo -e "${GREEN}Swap enabled in Termux:Boot script.${NC}"
+        echo -e "${GREEN}Swap added to Termux:Boot.${NC}"
     fi
 }
 
-# Main function for low RAM handling
 auto_setup_swap_if_low_ram() {
-    if ! is_root; then
-        return
-    fi
+    if ! is_root; then return; fi
 
     local ram_mb=$(get_total_ram_mb)
 
     if [ "$ram_mb" -lt 2048 ]; then
         echo -e "${YELLOW}Low RAM detected (${ram_mb} MB)${NC}"
-        echo -e "Creating swap is recommended for better performance."
-        echo ""
-        read -p "Create swap file now? (y/n): " ans
-
+        read -p "Create swap file? (y/n): " ans
         if [[ "$ans" == "y" || "$ans" == "Y" ]]; then
             create_swap
             enable_swap_on_boot
-        else
-            echo -e "${YELLOW}Swap creation skipped.${NC}"
         fi
     else
-        echo -e "${GREEN}RAM is sufficient (${ram_mb} MB). No swap needed.${NC}"
+        echo -e "${GREEN}RAM is sufficient (${ram_mb} MB).${NC}"
     fi
 }
 
 swap_management_menu() {
     if ! is_root; then
-        echo -e "${RED}Root access required.${NC}"
+        echo -e "${RED}Root required.${NC}"
         return
     fi
 
-    echo -e "${PURPLE}=== Swap Management ===${NC}"
+    echo -e "${PURPLE}Swap Management:${NC}"
     echo "1) Check Current Swap"
-    echo "2) Create Swap File (Manual)"
+    echo "2) Create Swap File"
     echo "3) Enable Swap on Boot"
-    echo "4) Auto Setup (Recommended if RAM < 2GB)"
+    echo "4) Auto Setup (if RAM < 2GB)"
     echo "5) Back"
     read -p "Choose: " c
 
@@ -362,7 +342,7 @@ setup_termux_boot() {
         return
     fi
 
-    echo -e "${PURPLE}=== Termux:Boot Setup ===${NC}"
+    echo -e "${PURPLE}Termux:Boot Setup:${NC}"
     read -p "Start Nginx? (y/n): " n1
     read -p "Start PHP-FPM? (y/n): " n2
     read -p "Start MariaDB? (y/n): " n3
@@ -391,7 +371,7 @@ root_boot_menu() {
         return
     fi
 
-    echo -e "${PURPLE}=== Termux:Boot ===${NC}"
+    echo -e "${PURPLE}Termux:Boot:${NC}"
     echo "1) Setup Termux:Boot"
     echo "2) Back"
     read -p "Choose: " c
