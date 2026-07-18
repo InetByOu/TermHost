@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Installer v4.0 - Simplified & More Reliable
+# TermHost Installer v4.1 - Stable Package List
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,7 +13,7 @@ INSTALL_DIR="$HOME/termhost"
 BIN_PATH="$PREFIX/bin/termhost"
 
 clear
-echo -e "${BLUE}TermHost Installer v4.0${NC}"
+echo -e "${BLUE}TermHost Installer v4.1${NC}"
     echo "===================================="
     echo ""
 
@@ -44,25 +44,25 @@ echo_ok
 # ==================== 3. INSTALL CORE PACKAGES ====================
 echo_step "3/7" "Installing core packages"
 
-# Core packages that are almost always available
-CORE_PACKAGES="nginx php-fpm php php-pdo git curl wget jq unzip"
+# Safe and commonly available packages
+CORE="nginx php-fpm php git curl wget jq unzip"
 
-if pkg install -y $CORE_PACKAGES >> /dev/null 2>&1; then
+if pkg install -y $CORE >> /dev/null 2>&1; then
     echo_ok
 else
     echo_fail
     echo -e "${RED}Failed to install core packages.${NC}"
-    echo "Please run manually:"
-    echo "pkg install -y $CORE_PACKAGES"
+    echo "Please run this manually:"
+    echo "pkg install -y $CORE"
     exit 1
 fi
 
-# Optional: MariaDB (can fail on some devices)
+# MariaDB is optional
 echo -ne "${YELLOW}Installing MariaDB (optional)... ${NC}"
 if pkg install -y mariadb >> /dev/null 2>&1; then
     echo -e "${GREEN}OK${NC}"
 else
-    echo -e "${YELLOW}Skipped (not critical)${NC}"
+    echo -e "${YELLOW}Skipped${NC}"
 fi
 
 # ==================== 4. DOWNLOAD FROM GITHUB ====================
@@ -79,7 +79,6 @@ else
 fi
 echo_ok
 
-# Verify critical files
 if [ ! -f "$INSTALL_DIR/termhost.sh" ]; then
     echo -e "${RED}Critical Error: termhost.sh not found!${NC}"
     exit 1
