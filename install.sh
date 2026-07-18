@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Installer v4.3 - Smart Package with Fallback
+# TermHost Installer v4.4 - Stronger Package Recovery
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,7 +13,7 @@ INSTALL_DIR="$HOME/termhost"
 BIN_PATH="$PREFIX/bin/termhost"
 
 clear
-echo -e "${BLUE}TermHost Installer v4.3${NC}"
+echo -e "${BLUE}TermHost Installer v4.4${NC}"
     echo "===================================="
     echo ""
 
@@ -30,21 +30,25 @@ echo_fail() {
     echo -e "${RED}FAILED${NC}"
 }
 
-# ==================== 1. FIX BROKEN DPKG ====================
-echo_step "1/7" "Fixing broken packages"
+# ==================== 1. AGGRESSIVE DPKG FIX ====================
+echo_step "1/7" "Fixing package system"
+
+# Multiple recovery attempts
 dpkg --configure -a >> /dev/null 2>&1 || true
 apt --fix-broken install -y >> /dev/null 2>&1 || true
-echo_ok
-
-# ==================== 2. UPDATE PACKAGES ====================
-echo_step "2/7" "Updating package repositories"
 pkg update -y >> /dev/null 2>&1 || true
+
 echo_ok
 
-# ==================== 3. SMART PACKAGE INSTALLATION ====================
-echo_step "3/7" "Installing packages with fallback"
+# ==================== 2. UPDATE & UPGRADE ====================
+echo_step "2/7" "Updating and upgrading packages"
+pkg upgrade -y >> /dev/null 2>&1 || true
+echo_ok
 
-# Format: main_package:alternative_package
+# ==================== 3. INSTALL PACKAGES WITH SMART FALLBACK ====================
+echo_step "3/7" "Installing packages"
+
+# List of packages with optional fallback (main:fallback)
 PACKAGES=(
     "nginx"
     "php-fpm"
@@ -57,32 +61,32 @@ PACKAGES=(
     "mariadb"
 )
 
-install_with_fallback() {
-    local pkg="$1"
-    
-    # Try main package
-    if pkg install -y "$pkg" >> /dev/null 2>&1; then
-        echo -e "  ${GREEN}✓${NC} $pkg"
-        return 0
-    fi
-    
-    # If failed and has alternative (format: main:alt)
-    if [[ "$pkg" == *":"* ]]; then
-        local alt="${pkg#*:}"
-        echo -e "  ${YELLOW}!${NC} $pkg not available, trying $alt..."
-        if pkg install -y "$alt" >> /dev/null 2>&1; then
-            echo -e "  ${GREEN}✓${NC} $alt (alternative)"
-            return 0
-        fi
-    fi
-    
-    echo -e "  ${RED}✗${NC} $pkg (skipped)"
-    return 1
-}
+failed_packages=()
 
-for pkg in "${PACKAGES[@]}"; do
-    install_with_fallback "$pkg"
+for entry in "${PACKAGES[@]}"; do
+    # Support format: package:alternative
+    if [[ "$entry" == *":"* ]]; then
+        main="${entry%%:*}"
+        alt="${entry##*:}"
+    else
+        main="$entry"
+        alt=""
+    fi
+
+    if pkg install -y "$main" >> /dev/null 2>&1; then
+        echo -e "  ${GREEN}✓${NC} $main"
+    elif [ -n "$alt" ] && pkg install -y "$alt" >> /dev/null 2>&1; then
+        echo -e "  ${GREEN}✓${NC} $alt (fallback)"
+    else
+        echo -e "  ${RED}✗${NC} $main (skipped)"
+        failed_packages+=("$main")
+    fi
 done
+
+if [ ${#failed_packages[@]} -gt 0 ]; then
+    echo -e "${YELLOW}Some packages failed to install: ${failed_packages[*]}${NC}"
+    echo -e "${YELLOW}You can install them later manually.${NC}"
+fi
 
 echo_ok
 
