@@ -1,33 +1,47 @@
-# TermHost v2.3
+# TermHost
 
-> Termux Web Hosting Manager with Auto Start
+> Termux Web Hosting Manager
 
-Complete web hosting solution for Termux with virtual hosts and auto-start support.
+Full-featured web hosting manager for Termux with Virtual Hosts, Auto Start, and easy public access.
+
+## One-Command Installation (Recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/install.sh | bash
+```
+
+Or using wget:
+
+```bash
+wget -qO- https://raw.githubusercontent.com/InetByOu/TermHost/main/install.sh | bash
+```
+
+After installation, simply run:
+```bash
+termhost
+```
 
 ## Features
 
 - Proper Virtual Hosts (`http://namawebsite.localhost:8080`)
-- Auto Start services when Termux opens
-- Ngrok, Cloudflare Tunnel, localhost.run support
-- Interactive CLI with beautiful menu
+- Auto Start when Termux opens
+- Ngrok, Cloudflare Tunnel, localhost.run
+- Interactive CLI menu
 - Database management
 - One-run installer
 
-## Auto Start
-
-You can enable services to start automatically when you open Termux:
-
-Go to menu **9) Settings / Auto Start** → Choose **Enable Auto Start**
-
-After enabling, restart Termux once.
-
-## Quick Start
+## Manual Installation
 
 ```bash
 git clone https://github.com/InetByOu/TermHost.git
 cd TermHost
 bash install.sh
-bash termhost.sh
+```
+
+## Usage
+
+```bash
+termhost
 ```
 
 ## Author
