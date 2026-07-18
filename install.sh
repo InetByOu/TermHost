@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Installer v3.1 - With dpkg Error Handling
+# TermHost Installer v3.2 - Better Package Handling
 
 set -e
 
@@ -16,21 +16,32 @@ BIN_PATH="$PREFIX/bin/termhost"
 
 clear
 echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║           TermHost Installer v3.1                  ║${NC}"
+    echo -e "${BLUE}║           TermHost Installer v3.2                  ║${NC}"
     echo -e "${BLUE}╚════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
-# ==================== FIX BROKEN DPKG (Common Termux Error) ====================
-echo -e "${YELLOW}[Pre-check]${NC} Checking for broken packages..."
+# ==================== FIX BROKEN DPKG ====================
+echo -e "${YELLOW}[Pre-check]${NC} Fixing broken packages if any..."
+dpkg --configure -a 2>/dev/null || true
+apt --fix-broken install -y 2>/dev/null || true
 
-if dpkg --audit 2>/dev/null | grep -q 'dpkg'; then
-    echo -e "${YELLOW}Detected broken dpkg state. Attempting to fix...${NC}"
-    
+# ==================== UPDATE & UPGRADE REPO ====================
+echo -e "${YELLOW}[1/7]${NC} Updating package list and upgrading..."
+pkg update -y && pkg upgrade -y || {
+    echo -e "${YELLOW}Warning: Upgrade had issues. Fixing dpkg...${NC}"
     dpkg --configure -a 2>/dev/null || true
-    apt --fix-broken install -y 2>/dev/null || true
-    pkg update -y 2>/dev/null || true
-    
-    echo -e "${GREEN}Broken packages fixed.${NC}"
+    pkg update -y
+}
+
+# ==================== CHECK PACKAGE AVAILABILITY ====================
+echo -e "${YELLOW}[2/7]${NC} Checking available packages..."
+
+PHP_MYSQL_PKG=""
+if pkg list-all 2>/dev/null | grep -q "php-mysql"; then
+    PHP_MYSQL_PKG="php-mysql"
+    echo -e "${GREEN}Found: php-mysql${NC}"
+else
+    echo -e "${YELLOW}php-mysql not available. Using alternative (php).${NC}"
 fi
 
 # ==================== ROOT DETECTION ====================
@@ -40,26 +51,25 @@ if [ "$(id -u)" -eq 0 ]; then
     echo ""
 fi
 
-# ==================== MAIN INSTALLATION ====================
-echo -e "${YELLOW}[1/6]${NC} Updating Termux packages..."
-pkg update -y && pkg upgrade -y || {
-    echo -e "${YELLOW}Warning: pkg upgrade encountered issues. Trying to fix...${NC}"
-    dpkg --configure -a 2>/dev/null || true
-    apt --fix-broken install -y 2>/dev/null || true
-    pkg update -y
-}
+# ==================== INSTALL PACKAGES ====================
+echo -e "${YELLOW}[3/7]${NC} Installing required packages..."
 
-echo -e "${YELLOW}[2/6]${NC} Installing required packages..."
-pkg install -y nginx php-fpm php php-mysql mariadb git curl wget jq unzip || {
-    echo -e "${RED}Failed to install some packages. Trying to fix dpkg...${NC}"
+PACKAGES="nginx php-fpm php git curl wget jq unzip"
+
+if [ -n "$PHP_MYSQL_PKG" ]; then
+    PACKAGES="$PACKAGES $PHP_MYSQL_PKG"
+fi
+
+pkg install -y $PACKAGES || {
+    echo -e "${RED}Some packages failed. Trying to fix...${NC}"
     dpkg --configure -a
     apt --fix-broken install -y
-    pkg install -y nginx php-fpm php php-mysql mariadb git curl wget jq unzip
+    pkg install -y $PACKAGES
 }
 
-echo -e "${YELLOW}[3/6]${NC} Setting up TermHost directory..."
+echo -e "${YELLOW}[4/7]${NC} Setting up TermHost directory..."
 if [ -d "$INSTALL_DIR" ]; then
-    echo -e "${YELLOW}TermHost already exists. Updating...${NC}"
+    echo -e "${YELLOW}Updating existing TermHost...${NC}"
     cd "$INSTALL_DIR" && git pull
 else
     git clone https://github.com/InetByOu/TermHost.git "$INSTALL_DIR"
@@ -76,7 +86,7 @@ cat > "$INSTALL_DIR/config/config.json" << 'EOF'
 EOF
 fi
 
-echo -e "${YELLOW}[4/6]${NC} Configuring Nginx & PHP-FPM..."
+echo -e "${YELLOW}[5/7]${NC} Configuring Nginx & PHP-FPM..."
 
 cat > $PREFIX/etc/php-fpm.d/www.conf << 'PHPEOF'
 [www]
@@ -124,12 +134,12 @@ cat > "$INSTALL_DIR/sites/default/index.php" << 'EOF'
 <?php echo "TermHost is ready!"; ?>
 EOF
 
-echo -e "${YELLOW}[5/6]${NC} Creating 'termhost' command..."
+echo -e "${YELLOW}[6/7]${NC} Creating 'termhost' command..."
 chmod +x "$INSTALL_DIR/termhost.sh"
 if [ -L "$BIN_PATH" ]; then rm -f "$BIN_PATH"; fi
 ln -s "$INSTALL_DIR/termhost.sh" "$BIN_PATH"
 
-echo -e "${YELLOW}[6/6]${NC} Starting services for the first time..."
+echo -e "${YELLOW}[7/7]${NC} Starting services..."
 pkill nginx 2>/dev/null || true
 pkill php-fpm 2>/dev/null || true
 pkill mysqld 2>/dev/null || true
@@ -146,8 +156,7 @@ echo -e "${GREEN}╔════════════════════
     echo -e "${GREEN}║     TermHost installed successfully!               ║${NC}"
     echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "You can now run: ${YELLOW}termhost${NC}"
-    echo ""
+    echo -e "Run: ${YELLOW}termhost${NC}"
     if [ "$(id -u)" -eq 0 ]; then
         echo -e "${PURPLE}Running as ROOT - Extra features enabled.${NC}"
     fi
