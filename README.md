@@ -26,6 +26,11 @@ termhost
 - **Auto Swap** — Buat swap otomatis jika RAM < 2GB (khusus root)
 - **Error Handling** — Lebih aman dan user-friendly
 
+## Port
+
+- **Non-root**: Direkomendasikan menggunakan port **8080** (default)
+- **Root**: Bisa menggunakan port custom (contoh: 80 atau port lain sesuai kebutuhan)
+
 ## Cara Penggunaan
 
 1. Jalankan `termhost`
