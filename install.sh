@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Installer v4.1 - Stable Package List
+# TermHost Installer v4.2 - Use php instead of php-pdo
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,7 +13,7 @@ INSTALL_DIR="$HOME/termhost"
 BIN_PATH="$PREFIX/bin/termhost"
 
 clear
-echo -e "${BLUE}TermHost Installer v4.1${NC}"
+echo -e "${BLUE}TermHost Installer v4.2${NC}"
     echo "===================================="
     echo ""
 
@@ -44,7 +44,7 @@ echo_ok
 # ==================== 3. INSTALL CORE PACKAGES ====================
 echo_step "3/7" "Installing core packages"
 
-# Safe and commonly available packages
+# php already includes PDO in most Termux versions
 CORE="nginx php-fpm php git curl wget jq unzip"
 
 if pkg install -y $CORE >> /dev/null 2>&1; then
@@ -57,7 +57,7 @@ else
     exit 1
 fi
 
-# MariaDB is optional
+# MariaDB optional
 echo -ne "${YELLOW}Installing MariaDB (optional)... ${NC}"
 if pkg install -y mariadb >> /dev/null 2>&1; then
     echo -e "${GREEN}OK${NC}"
