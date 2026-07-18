@@ -1,8 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Smart Installer v3.3
-
-set -e
+# TermHost Smart Installer v3.4 - Stable + Logging
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,97 +11,60 @@ NC='\033[0m'
 
 INSTALL_DIR="$HOME/termhost"
 BIN_PATH="$PREFIX/bin/termhost"
+LOG_FILE="$HOME/termhost_install.log"
 
 clear
 echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║           TermHost Smart Installer v3.3            ║${NC}"
+    echo -e "${BLUE}║           TermHost Smart Installer v3.4            ║${NC}"
     echo -e "${BLUE}╚════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
+# Start logging
+echo "=== TermHost Installation Log - $(date) ===" > "$LOG_FILE"
+
+log() {
+    echo -e "$1"
+    echo "$(date '+%H:%M:%S') - $1" >> "$LOG_FILE"
+}
+
 # ==================== FIX BROKEN DPKG ====================
-echo -e "${YELLOW}[Pre-check]${NC} Fixing broken dpkg if needed..."
-dpkg --configure -a 2>/dev/null || true
-apt --fix-broken install -y 2>/dev/null || true
+log "[Pre-check] Fixing broken dpkg..."
+dpkg --configure -a >> "$LOG_FILE" 2>&1 || true
+apt --fix-broken install -y >> "$LOG_FILE" 2>&1 || true
 
 # ==================== UPDATE & UPGRADE ====================
-echo -e "${YELLOW}[1/8]${NC} Updating package repositories..."
-pkg update -y && pkg upgrade -y || {
-    echo -e "${YELLOW}Fixing dpkg after upgrade issue...${NC}"
-    dpkg --configure -a 2>/dev/null || true
-    pkg update -y
+log "[1/7] Updating package repositories..."
+pkg update -y >> "$LOG_FILE" 2>&1 || true
+pkg upgrade -y >> "$LOG_FILE" 2>&1 || {
+    log "${YELLOW}Warning: Upgrade had issues. Fixing dpkg...${NC}"
+    dpkg --configure -a >> "$LOG_FILE" 2>&1 || true
 }
 
-# ==================== SMART PACKAGE CHECK ====================
-echo -e "${YELLOW}[2/8]${NC} Checking available packages in repository..."
+# ==================== INSTALL PACKAGES (SAFE LIST) ====================
+log "[2/7] Installing required packages..."
 
-AVAILABLE_PACKAGES=$(pkg list-all 2>/dev/null)
-
-check_pkg() {
-    echo "$AVAILABLE_PACKAGES" | grep -q "^$1 "
+# Safe and commonly available packages in Termux
+pkg install -y nginx php-fpm php php-pdo git curl wget jq unzip mariadb >> "$LOG_FILE" 2>&1 || {
+    log "${YELLOW}Some packages failed. Trying to fix and retry...${NC}"
+    dpkg --configure -a >> "$LOG_FILE" 2>&1 || true
+    apt --fix-broken install -y >> "$LOG_FILE" 2>&1 || true
+    pkg install -y nginx php-fpm php php-pdo git curl wget jq unzip mariadb >> "$LOG_FILE" 2>&1 || true
 }
 
-PACKAGES_TO_INSTALL=""
+log "${GREEN}Package installation completed.${NC}"
 
-add_pkg() {
-    if check_pkg "$1"; then
-        PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $1"
-        echo -e "  ${GREEN}✓${NC} $1"
-    else
-        echo -e "  ${YELLOW}✗${NC} $1 (not available, skipping)"
-    fi
-}
-
-add_pkg nginx
-add_pkg php-fpm
-add_pkg php
-add_pkg php-pdo
-add_pkg php-pdo-mysql
-add_pkg php-mysql
-add_pkg git
-add_pkg curl
-add_pkg wget
-add_pkg jq
-add_pkg unzip
-add_pkg mariadb
-
-# ==================== ROOT DETECTION ====================
-if [ "$(id -u)" -eq 0 ]; then
-    echo -e "${PURPLE}[INFO] Running as ROOT${NC}"
-fi
-
-# ==================== INSTALL PACKAGES ====================
-echo -e "${YELLOW}[3/8]${NC} Installing available packages..."
-
-if [ -n "$PACKAGES_TO_INSTALL" ]; then
-    pkg install -y $PACKAGES_TO_INSTALL || {
-        echo -e "${RED}Some packages failed. Fixing dpkg...${NC}"
-        dpkg --configure -a
-        apt --fix-broken install -y
-        pkg install -y $PACKAGES_TO_INSTALL
-    }
-else
-    echo -e "${RED}No packages to install!${NC}"
-fi
-
-# ==================== CHECK & CREATE DIRECTORIES ====================
-echo -e "${YELLOW}[4/8]${NC} Checking and creating required directories..."
-
+# ==================== CREATE DIRECTORIES ====================
+log "[3/7] Creating required directories..."
 mkdir -p "$INSTALL_DIR/sites/default"
 mkdir -p "$INSTALL_DIR/vhosts"
 mkdir -p "$INSTALL_DIR/logs"
 mkdir -p "$INSTALL_DIR/config"
 
-# Check important system directories
-if [ ! -d "$PREFIX/etc/nginx" ]; then
-    mkdir -p "$PREFIX/etc/nginx"
-fi
+mkdir -p "$PREFIX/etc/nginx"
+mkdir -p "$PREFIX/etc/php-fpm.d"
 
-if [ ! -d "$PREFIX/etc/php-fpm.d" ]; then
-    mkdir -p "$PREFIX/etc/php-fpm.d"
-fi
-
-# ==================== CREATE DEFAULT CONFIG ====================
-echo -e "${YELLOW}[5/8]${NC} Creating default configuration..."
+# ==================== CREATE CONFIG ====================
+log "[4/7] Creating default configuration..."
 
 if [ ! -f "$INSTALL_DIR/config/config.json" ]; then
 cat > "$INSTALL_DIR/config/config.json" << 'EOF'
@@ -114,8 +75,8 @@ cat > "$INSTALL_DIR/config/config.json" << 'EOF'
 EOF
 fi
 
-# ==================== CONFIGURE NGINX & PHP-FPM ====================
-echo -e "${YELLOW}[6/8]${NC} Configuring Nginx and PHP-FPM..."
+# ==================== CONFIGURE SERVICES ====================
+log "[5/7] Configuring Nginx and PHP-FPM..."
 
 cat > $PREFIX/etc/php-fpm.d/www.conf << 'PHPEOF'
 [www]
@@ -163,13 +124,13 @@ cat > "$INSTALL_DIR/sites/default/index.php" << 'EOF'
 EOF
 
 # ==================== CREATE BINARY ====================
-echo -e "${YELLOW}[7/8]${NC} Creating 'termhost' command..."
+log "[6/7] Creating 'termhost' command..."
 chmod +x "$INSTALL_DIR/termhost.sh"
 if [ -L "$BIN_PATH" ]; then rm -f "$BIN_PATH"; fi
 ln -s "$INSTALL_DIR/termhost.sh" "$BIN_PATH"
 
 # ==================== START SERVICES ====================
-echo -e "${YELLOW}[8/8]${NC} Starting services for the first time..."
+log "[7/7] Starting services..."
 
 pkill nginx 2>/dev/null || true
 pkill php-fpm 2>/dev/null || true
@@ -187,7 +148,8 @@ echo -e "${GREEN}╔════════════════════
     echo -e "${GREEN}║     TermHost installed successfully!               ║${NC}"
     echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "You can now run: ${YELLOW}termhost${NC}"
+    echo -e "Run: ${YELLOW}termhost${NC}"
+    echo -e "Installation log saved to: ${CYAN}$LOG_FILE${NC}"
     if [ "$(id -u)" -eq 0 ]; then
         echo -e "${PURPLE}Running as ROOT - Extra features enabled.${NC}"
     fi
