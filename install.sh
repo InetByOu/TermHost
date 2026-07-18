@@ -33,7 +33,6 @@ echo_fail() {
 # ==================== 1. AGGRESSIVE DPKG FIX ====================
 echo_step "1/7" "Fixing package system"
 
-# Multiple recovery attempts
 dpkg --configure -a >> /dev/null 2>&1 || true
 apt --fix-broken install -y >> /dev/null 2>&1 || true
 pkg update -y >> /dev/null 2>&1 || true
@@ -48,7 +47,6 @@ echo_ok
 # ==================== 3. INSTALL PACKAGES WITH SMART FALLBACK ====================
 echo_step "3/7" "Installing packages"
 
-# List of packages with optional fallback (main:fallback)
 PACKAGES=(
     "nginx"
     "php-fpm"
@@ -64,7 +62,6 @@ PACKAGES=(
 failed_packages=()
 
 for entry in "${PACKAGES[@]}"; do
-    # Support format: package:alternative
     if [[ "$entry" == *":"* ]]; then
         main="${entry%%:*}"
         alt="${entry##*:}"
@@ -84,8 +81,7 @@ for entry in "${PACKAGES[@]}"; do
 done
 
 if [ ${#failed_packages[@]} -gt 0 ]; then
-    echo -e "${YELLOW}Some packages failed to install: ${failed_packages[*]}${NC}"
-    echo -e "${YELLOW}You can install them later manually.${NC}"
+    echo -e "${YELLOW}Some packages failed: ${failed_packages[*]}${NC}"
 fi
 
 echo_ok

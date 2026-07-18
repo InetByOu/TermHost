@@ -15,20 +15,16 @@ termhost
 
 ## Easy Update
 
-No need to use `cd` and `git pull` manually.
-
-Just open TermHost and choose:
-**Menu 11) Update TermHost**
-
-TermHost will automatically update itself.
+No need to use manual commands.
+Just choose **Menu 11) Update TermHost** inside the app.
 
 ## Features
 
-- Real-time Dashboard
+- Real-time Dashboard (auto refresh)
+- Easy Update from inside the app
 - Change Port
 - SD Card Hosting
-- Termux:Boot & Auto Swap (for Root)
-- Simple & User Friendly
+- Termux:Boot & Auto Swap (Root)
 
 ## Author
 InetByOu

@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v4.7 - Simple Update Feature
+# TermHost v4.7 - Simple Update + Real-time Dashboard
 
 CONFIG="$HOME/termhost/config/config.json"
 SITES_DIR="$HOME/termhost/sites"
@@ -123,7 +123,7 @@ update_termhost() {
             echo -e "${GREEN}TermHost updated successfully!${NC}"
             echo -e "${YELLOW}Please restart TermHost to apply changes.${NC}"
         else
-            echo -e "${RED}Failed to update. Check your internet connection.${NC}"
+            echo -e "${RED}Failed to update. Check your internet.${NC}"
         fi
     else
         echo -e "${RED}TermHost directory not found.${NC}"
@@ -148,7 +148,7 @@ show_dashboard() {
                 4) start_services; return ;;
                 5) stop_services; return ;;
                 6) setup_tunnel; return ;;
-                7) ;; # refresh
+                7) ;; 
                 8) database_menu; return ;;
                 9) fix_permissions; return ;;
                 10) change_port; return ;;
@@ -160,17 +160,176 @@ show_dashboard() {
     done
 }
 
-change_port() { ... }      # keep previous implementation
-create_website() { ... }
-create_from_storage() { ... }
-create_vhost() { ... }
-add_to_hosts() { ... }
-list_websites() { ... }
-start_services() { ... }
-stop_services() { ... }
-setup_tunnel() { ... }
-database_menu() { ... }
-fix_permissions() { ... }
+change_port() {
+    local current_port=$(get_port)
+    echo -e "${YELLOW}Current Port: $current_port${NC}"
+    read -p "New port: " new_port
+
+    if ! [[ "$new_port" =~ ^[0-9]+$ ]]; then
+        handle_error "Invalid port"
+        return
+    fi
+
+    jq ".port = $new_port" "$CONFIG" > tmp.json && mv tmp.json "$CONFIG" 2>/dev/null || echo "{ \"port\": $new_port }" > "$CONFIG"
+    sed -i "s/listen .*;/listen       $new_port;/" $PREFIX/etc/nginx/nginx.conf
+
+    if pgrep nginx >/dev/null; then
+        nginx -s reload 2>/dev/null || true
+    fi
+
+    echo -e "${GREEN}Port changed to $new_port successfully!${NC}"
+}
+
+create_website() {
+    read -p "Website name: " name
+    if [ -z "$name" ]; then
+        handle_error "Name cannot be empty"
+        return
+    fi
+
+    site_path="$SITES_DIR/$name"
+    if [ -d "$site_path" ]; then
+        handle_error "Website already exists"
+        return
+    fi
+
+    mkdir -p "$site_path" || { handle_error "Failed to create folder"; return; }
+
+    cat > "$site_path/index.php" << EOF
+<?php echo "<h1>Welcome to $name</h1>"; ?>
+EOF
+
+    create_vhost "$name"
+    add_to_hosts "$name"
+    nginx -s reload 2>/dev/null || true
+
+    local port=$(get_port)
+    echo -e "${GREEN}Website created: http://$name.localhost:$port${NC}"
+}
+
+create_from_storage() {
+    if ! has_storage; then
+        echo -e "${YELLOW}Run 'termux-setup-storage' first${NC}"
+        return
+    fi
+
+    echo "1) Download  2) DCIM  3) Pictures  4) Documents  5) Custom"
+    read -p "Choose: " choice
+
+    local path=""
+    case $choice in
+        1) path="$STORAGE_DIR/Download" ;;
+        2) path="$STORAGE_DIR/DCIM" ;;
+        3) path="$STORAGE_DIR/Pictures" ;;
+        4) path="$STORAGE_DIR/Documents" ;;
+        5) read -p "Folder: " f; path="$STORAGE_DIR/$f" ;;
+        *) return ;;
+    esac
+
+    if [ ! -d "$path" ]; then
+        handle_error "Folder not found"
+        return
+    fi
+
+    read -p "Website name: " name
+    site_path="$SITES_DIR/$name"
+
+    ln -s "$path" "$site_path" || { handle_error "Failed to create symlink"; return; }
+
+    create_vhost "$name"
+    add_to_hosts "$name"
+    nginx -s reload 2>/dev/null || true
+
+    local port=$(get_port)
+    echo -e "${GREEN}Created from Storage! Access: http://$name.localhost:$port${NC}"
+}
+
+create_vhost() {
+    local name=$1
+    local port=$(get_port)
+    mkdir -p "$VHOST_DIR"
+    cat > "$VHOST_DIR/$name.conf" << EOF
+server {
+    listen $port;
+    server_name $name.localhost;
+
+    root $SITES_DIR/$name;
+    index index.php index.html;
+
+    location / {
+        try_files \$uri \$uri/ /index.php?\$args;
+    }
+
+    location ~ \\.php\$ {
+        fastcgi_pass 127.0.0.1:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        include fastcgi_params;
+    }
+}
+EOF
+}
+
+add_to_hosts() {
+    echo "127.0.0.1 $1.localhost" >> "$PREFIX/etc/hosts" 2>/dev/null || true
+}
+
+list_websites() {
+    local port=$(get_port)
+    echo -e "${YELLOW}Your Websites:${NC}"
+    ls "$SITES_DIR" 2>/dev/null | while read s; do
+        echo "  → $s → http://$s.localhost:$port"
+    done
+    echo ""
+}
+
+start_services() {
+    echo -e "${YELLOW}Starting services...${NC}"
+    stop_services
+    sleep 1
+
+    php-fpm >/dev/null 2>&1 || handle_error "Failed to start PHP-FPM"
+    nginx >/dev/null 2>&1 || handle_error "Failed to start Nginx"
+
+    if [ "$(jq -r '.use_mariadb' $CONFIG 2>/dev/null)" = "true" ]; then
+        mysqld_safe --datadir=$PREFIX/var/lib/mysql >/dev/null 2>&1 &
+    fi
+
+    echo -e "${GREEN}Services started.${NC}"
+}
+
+stop_services() {
+    pkill nginx 2>/dev/null || true
+    pkill php-fpm 2>/dev/null || true
+    pkill mysqld 2>/dev/null || true
+    pkill -f "ngrok http" 2>/dev/null || true
+    pkill -f cloudflared 2>/dev/null || true
+    echo -e "${RED}All services stopped.${NC}"
+}
+
+setup_tunnel() {
+    echo "1) Ngrok  2) Cloudflare  3) localhost.run"
+    read -p "Choose: " c
+    case $c in
+        1) read -p "Token: " t; ngrok config add-authtoken "$t"; pkill -f "ngrok http" 2>/dev/null || true; ngrok http 8080 > $LOG_DIR/ngrok.log 2>&1 & ;;
+        2) pkg install cloudflared -y; pkill -f cloudflared 2>/dev/null || true; cloudflared tunnel --url http://localhost:8080 > $LOG_DIR/cloudflare.log 2>&1 & ;;
+        3) pkill -f "ssh -R" 2>/dev/null || true; ssh -o StrictHostKeyChecking=no -R 80:localhost:8080 nokey@localhost.run > $LOG_DIR/localhostrun.log 2>&1 & ;;
+    esac
+}
+
+database_menu() {
+    echo "1) Create DB  2) List DBs"
+    read -p "Choose: " c
+    case $c in
+        1) read -p "DB Name: " db; mysql -u root -e "CREATE DATABASE $db;" ;;
+        2) mysql -u root -e "SHOW DATABASES;" ;;
+    esac
+}
+
+fix_permissions() {
+    chmod -R 755 "$SITES_DIR" "$VHOST_DIR" 2>/dev/null || true
+    echo -e "${GREEN}Permissions fixed.${NC}"
+}
 
 main() {
     while true; do
