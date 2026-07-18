@@ -1,6 +1,13 @@
-# TermHost v3.0
+# TermHost v3.1
 
-> Minimalist Terminal UI
+> Improved Process Management
+
+## Key Improvements
+
+- Better process handling using dedicated `stop_service()` and `stop_all_services()` functions
+- Safer start/stop of Nginx, PHP-FPM, MariaDB, and tunnels
+- Reduced risk of runaway processes
+- Cleaner and more reliable service management
 
 ## One Command Installation
 
@@ -12,20 +19,6 @@ Run:
 ```bash
 termhost
 ```
-
-## UI Changes (v3.0)
-
-- More minimalist design
-- Removed decorative borders
-- Cleaner and simpler terminal interface
-
-## Features
-
-- SD Card Hosting
-- Virtual Hosts
-- Error Handling
-- Root + Termux:Boot
-- Auto Swap for Low RAM
 
 ## Author
 InetByOu

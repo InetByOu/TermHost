@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v3.0 - Minimalist UI
+# TermHost v3.1 - Improved Process Management
 
 CONFIG="$HOME/termhost/config/config.json"
 SITES_DIR="$HOME/termhost/sites"
@@ -39,12 +39,78 @@ handle_error() {
     read -p "Press enter to continue..."
 }
 
+# ==================== SAFE PROCESS MANAGEMENT ====================
+
+stop_service() {
+    local service=$1
+    if pgrep -x "$service" >/dev/null 2>&1; then
+        pkill -x "$service" 2>/dev/null || true
+        sleep 1
+    fi
+}
+
+stop_all_services() {
+    echo -e "${YELLOW}Stopping all services...${NC}"
+    stop_service nginx
+    stop_service php-fpm
+    stop_service mysqld
+    
+    # Stop tunnels
+    pkill -f "ngrok http" 2>/dev/null || true
+    pkill -f cloudflared 2>/dev/null || true
+    pkill -f "ssh -R" 2>/dev/null || true
+    
+    echo -e "${GREEN}All services stopped.${NC}"
+}
+
+start_services() {
+    echo -e "${YELLOW}Starting services...${NC}"
+    
+    # Stop first to avoid conflicts
+    stop_all_services
+    sleep 1
+
+    # Start PHP-FPM
+    if ! php-fpm >/dev/null 2>&1; then
+        handle_error "Failed to start PHP-FPM"
+        return 1
+    fi
+
+    sleep 1
+
+    # Start Nginx
+    if ! nginx >/dev/null 2>&1; then
+        handle_error "Failed to start Nginx"
+        return 1
+    fi
+
+    # Start MariaDB if enabled
+    if [ "$(jq -r '.use_mariadb' $CONFIG 2>/dev/null)" = "true" ]; then
+        if ! mysqld_safe --datadir=$PREFIX/var/lib/mysql >/dev/null 2>&1 & then
+            echo -e "${YELLOW}Warning: Could not start MariaDB${NC}"
+        fi
+    fi
+
+    echo -e "${GREEN}Services started successfully.${NC}"
+}
+
+stop_services() {
+    stop_all_services
+}
+
+is_service_running() {
+    local service=$1
+    pgrep -x "$service" >/dev/null 2>&1
+}
+
+# ==================== HEADER & STATUS ====================
+
 print_header() {
     clear
     if is_root; then
-        echo -e "${PURPLE}TermHost v3.0${NC} - Root Mode"
+        echo -e "${PURPLE}TermHost v3.1${NC} - Root Mode"
     else
-        echo -e "${BLUE}TermHost v3.0${NC}"
+        echo -e "${BLUE}TermHost v3.1${NC}"
     fi
     echo "===================================="
     echo ""
@@ -53,19 +119,19 @@ print_header() {
 show_status() {
     echo -e "${CYAN}Service Status:${NC}"
     
-    if pgrep -x nginx >/dev/null; then
+    if is_service_running nginx; then
         echo -e "  Nginx      : ${GREEN}Running${NC}"
     else
         echo -e "  Nginx      : ${RED}Stopped${NC}"
     fi
 
-    if pgrep -x php-fpm >/dev/null; then
+    if is_service_running php-fpm; then
         echo -e "  PHP-FPM    : ${GREEN}Running${NC}"
     else
         echo -e "  PHP-FPM    : ${RED}Stopped${NC}"
     fi
 
-    if pgrep -x mysqld >/dev/null; then
+    if is_service_running mysqld; then
         echo -e "  MariaDB    : ${GREEN}Running${NC}"
     else
         echo -e "  MariaDB    : ${RED}Stopped${NC}"
@@ -215,24 +281,24 @@ list_websites() {
     echo ""
 }
 
-start_services() {
-    pkill nginx php-fpm mysqld 2>/dev/null || true
-    php-fpm && nginx
-    echo -e "${GREEN}Services started.${NC}"
-}
-
-stop_services() {
-    pkill nginx php-fpm mysqld 2>/dev/null || true
-    echo -e "${RED}Services stopped.${NC}"
-}
-
 setup_tunnel() {
     echo "1) Ngrok  2) Cloudflare  3) localhost.run"
     read -p "Choose: " c
     case $c in
-        1) read -p "Token: " t; ngrok config add-authtoken "$t"; ngrok http 8080 > $LOG_DIR/ngrok.log 2>&1 & ;;
-        2) pkg install cloudflared -y; cloudflared tunnel --url http://localhost:8080 > $LOG_DIR/cloudflare.log 2>&1 & ;;
-        3) ssh -R 80:localhost:8080 nokey@localhost.run > $LOG_DIR/localhostrun.log 2>&1 & ;;
+        1)
+            read -p "Ngrok token: " t
+            ngrok config add-authtoken "$t" 2>/dev/null || true
+            pkill -f "ngrok http" 2>/dev/null || true
+            ngrok http 8080 > $LOG_DIR/ngrok.log 2>&1 &
+            ;;
+        2)
+            pkill -f "ngrok http" 2>/dev/null || true
+            ngrok http 8080 > $LOG_DIR/ngrok.log 2>&1 &
+            ;;
+        3)
+            pkill -f "ssh -R" 2>/dev/null || true
+            ssh -o StrictHostKeyChecking=no -R 80:localhost:8080 nokey@localhost.run > $LOG_DIR/localhostrun.log 2>&1 &
+            ;;
     esac
 }
 
@@ -255,7 +321,7 @@ create_swap() {
     local swap_size_mb=1024
 
     if [ -f "$SWAP_FILE" ]; then
-        echo -e "${YELLOW}Swap file already exists.${NC}"
+        echo -e "${YELLOW}Swap already exists.${NC}"
         return
     fi
 
@@ -270,7 +336,7 @@ create_swap() {
     mkswap "$SWAP_FILE" >/dev/null 2>&1
     swapon "$SWAP_FILE" 2>/dev/null || true
 
-    echo -e "${GREEN}Swap created: $SWAP_FILE${NC}"
+    echo -e "${GREEN}Swap created successfully.${NC}"
 }
 
 enable_swap_on_boot() {
@@ -284,7 +350,7 @@ if [ -f "$SWAP_FILE" ]; then
 fi
 MAGISKEOF
         chmod 755 /data/adb/service.d/termhost_swap.sh
-        echo -e "${GREEN}Magisk service created for swap.${NC}"
+        echo -e "${GREEN}Magisk service created.${NC}"
     else
         mkdir -p "$BOOT_DIR"
         echo "swapon $SWAP_FILE 2>/dev/null || true" >> "$BOOT_DIR/start-termhost.sh"
