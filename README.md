@@ -1,6 +1,12 @@
-# TermHost v4.8
+# TermHost v4.9
 
-> Smoother Real-time Experience
+> Improved Real-time Experience
+
+## Key Improvement
+
+- Real-time dashboard now handles user input better
+- Reduced screen flickering during menu interaction
+- Smoother overall experience
 
 ## Installation
 
@@ -13,19 +19,9 @@ Run:
 termhost
 ```
 
-## Real-time Dashboard
-
-- Status updates automatically every 4 seconds
-- Reduced screen flickering for smoother experience
-- You can still select any menu option at any time
-
-## Easy Update
-
-Choose **Menu 11) Update TermHost** from inside the app.
-
 ## Features
 
-- Real-time Dashboard (smoother)
+- Real-time Dashboard (input-friendly)
 - Easy Update
 - Change Port
 - SD Card Hosting

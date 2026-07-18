@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v4.8 - Smoother Real-time Dashboard
+# TermHost v4.9 - Real-time Dashboard (Input Protected)
 
 CONFIG="$HOME/termhost/config/config.json"
 SITES_DIR="$HOME/termhost/sites"
@@ -28,9 +28,9 @@ handle_error() {
 
 print_header() {
     if is_root; then
-        echo -e "${PURPLE}TermHost v4.8${NC} - Root Mode | Port: $(get_port)"
+        echo -e "${PURPLE}TermHost v4.9${NC} - Root Mode | Port: $(get_port)"
     else
-        echo -e "${BLUE}TermHost v4.8${NC} | Port: $(get_port)"
+        echo -e "${BLUE}TermHost v4.9${NC} | Port: $(get_port)"
     fi
     echo "===================================="
 }
@@ -112,7 +112,7 @@ show_menu() {
     fi
     
     echo ""
-    echo -e "${CYAN}(Auto-refresh every 4 seconds. Press number to choose)${NC}"
+    echo -e "${CYAN}(Auto refresh every 4s. Press number anytime)${NC}"
 }
 
 show_dashboard() {
@@ -123,7 +123,7 @@ show_dashboard() {
         show_active_domains
         show_menu
 
-        # Read input with timeout for real-time feel
+        # Wait for input. If user starts typing, we don't force refresh
         if read -t 4 -n 1 choice 2>/dev/null; then
             case $choice in
                 1) create_website; return ;;
@@ -132,7 +132,7 @@ show_dashboard() {
                 4) start_services; return ;;
                 5) stop_services; return ;;
                 6) setup_tunnel; return ;;
-                7) ;;  # manual refresh
+                7) ;;                    # manual refresh
                 8) database_menu; return ;;
                 9) fix_permissions; return ;;
                 10) change_port; return ;;
@@ -141,6 +141,7 @@ show_dashboard() {
                 *) ;; 
             esac
         fi
+        # If no input after timeout, loop will refresh naturally
     done
 }
 
@@ -149,12 +150,10 @@ update_termhost() {
     if [ -d "$INSTALL_DIR" ]; then
         cd "$INSTALL_DIR" || return
         if git pull; then
-            echo -e "${GREEN}Updated successfully! Restart TermHost to apply changes.${NC}"
+            echo -e "${GREEN}Updated successfully! Please restart TermHost.${NC}"
         else
-            echo -e "${RED}Update failed. Check internet connection.${NC}"
+            echo -e "${RED}Update failed.${NC}"
         fi
-    else
-        echo -e "${RED}TermHost folder not found.${NC}"
     fi
     read -p "Press enter to continue..."
 }
@@ -165,7 +164,7 @@ change_port() {
     read -p "New port: " new_port
 
     if ! [[ "$new_port" =~ ^[0-9]+$ ]]; then
-        handle_error "Invalid port number"
+        handle_error "Invalid port"
         return
     fi
 
@@ -287,13 +286,8 @@ start_services() {
     stop_services
     sleep 1
 
-    if ! php-fpm >/dev/null 2>&1; then
-        handle_error "Failed to start PHP-FPM"
-    fi
-
-    if ! nginx >/dev/null 2>&1; then
-        handle_error "Failed to start Nginx"
-    fi
+    php-fpm >/dev/null 2>&1 || handle_error "Failed to start PHP-FPM"
+    nginx >/dev/null 2>&1 || handle_error "Failed to start Nginx"
 
     if [ "$(jq -r '.use_mariadb' $CONFIG 2>/dev/null)" = "true" ]; then
         mysqld_safe --datadir=$PREFIX/var/lib/mysql >/dev/null 2>&1 &
