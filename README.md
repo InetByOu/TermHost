@@ -1,8 +1,8 @@
-# TermHost v4.5
+# TermHost v4.6
 
-> Termux Web Hosting Manager with Change Port Feature
+> Real-time Dashboard
 
-## One Command Installation
+## Installation
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/install.sh | bash
@@ -13,22 +13,15 @@ Run:
 termhost
 ```
 
-## New Feature: Change Port
+## Real-time Dashboard
 
-You can now change the port used by Nginx directly from the menu:
+TermHost now features a **real-time updating dashboard**.
 
-**Menu 10) Change Port**
+- Status automatically refreshes every 4 seconds
+- Active public URLs are shown live
+- You can still select menu options at any time
 
-- Non-root users: Recommended to use port ≥ 1024 (e.g. 8080, 3000)
-- Root users: Can use any port including 80
-
-## Features
-
-- Virtual Hosts with custom port
-- SD Card Hosting
-- Termux:Boot Support (Root)
-- Auto Swap for Low RAM (Root)
-- Error Handling
+This gives a more modern and responsive CLI experience.
 
 ## Author
 InetByOu
