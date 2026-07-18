@@ -1,56 +1,34 @@
-# TermHost
+# TermHost v4.5
 
-> Termux Web Hosting Manager
+> Termux Web Hosting Manager with Change Port Feature
 
-Tool interaktif untuk menjalankan web hosting (Nginx + PHP-FPM + MariaDB) langsung di Termux dengan dukungan Virtual Host dan akses publik.
-
-## Instalasi (One Command)
+## One Command Installation
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/install.sh | bash
 ```
 
-Setelah install, jalankan:
+Run:
 ```bash
 termhost
 ```
 
-## Fitur Utama
+## New Feature: Change Port
 
-- **Virtual Host** — Akses website via `http://namawebsite.localhost:8080`
-- **Hosting dari SD Card** — Serve file langsung dari storage
-- **Auto Start** — Bisa jalan otomatis saat Termux dibuka
-- **Public Access** — Ngrok, Cloudflare Tunnel, localhost.run
-- **Database Management** — Buat & kelola database MariaDB
-- **Termux:Boot** — Auto start saat device boot (khusus root)
-- **Auto Swap** — Buat swap otomatis jika RAM < 2GB (khusus root)
-- **Error Handling** — Lebih aman dan user-friendly
+You can now change the port used by Nginx directly from the menu:
 
-## Port
+**Menu 10) Change Port**
 
-- **Non-root**: Direkomendasikan menggunakan port **8080** (default)
-- **Root**: Bisa menggunakan port custom (contoh: 80 atau port lain sesuai kebutuhan)
+- Non-root users: Recommended to use port ≥ 1024 (e.g. 8080, 3000)
+- Root users: Can use any port including 80
 
-## Cara Penggunaan
+## Features
 
-1. Jalankan `termhost`
-2. Pilih menu yang diinginkan
-3. Buat website baru atau host dari SD Card
-4. Start service
-5. Akses via browser: `http://namawebsite.localhost:8080`
-
-## Untuk User Root
-
-- Menu **Termux:Boot** (auto start saat boot)
-- Menu **Swap Management** (otomatis jika RAM rendah)
-- Bisa pakai Magisk service untuk swap
-
-## Update
-
-```bash
-cd ~/termhost && git pull
-termhost
-```
+- Virtual Hosts with custom port
+- SD Card Hosting
+- Termux:Boot Support (Root)
+- Auto Swap for Low RAM (Root)
+- Error Handling
 
 ## Author
 InetByOu
