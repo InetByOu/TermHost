@@ -1,34 +1,31 @@
-# TermHost v2.7
+# TermHost v2.8
 
-> Termux Web Hosting Manager with Termux:Boot Support
+> Termux Web Hosting Manager with Configurable Termux:Boot
 
-## Installation
+## One Command Installation
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/install.sh | bash
 ```
 
-Run:
-```bash
-termhost
-```
+## Termux:Boot (Root Only)
 
-## Termux:Boot (Auto Start on Device Boot) - Root Only
+Root users can now configure exactly which services to start on device boot:
 
-For **root users**, TermHost now supports Termux:Boot:
+- Nginx
+- PHP-FPM
+- MariaDB
+- Ngrok Tunnel
+- Cloudflare Tunnel
 
-- Menu **10) Termux:Boot Setup**
-- Automatically creates boot script in `~/.termux/boot/`
-- Services will start automatically when device boots
-
-**Note:** You still need to install the Termux:Boot app from F-Droid manually for best compatibility.
+Go to menu **10) Termux:Boot Setup** → Choose services one by one.
 
 ## Features
 
 - SD Card Hosting
 - Virtual Hosts
-- Error Handling
-- Root + Termux:Boot Support
+- Error Handling + Permission Fix
+- Root + Configurable Termux:Boot
 
 ## Author
 InetByOu
