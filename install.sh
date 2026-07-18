@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Installer v3.10 - Better Package Installation
+# TermHost Installer v4.0 - Simplified & More Reliable
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,7 +13,7 @@ INSTALL_DIR="$HOME/termhost"
 BIN_PATH="$PREFIX/bin/termhost"
 
 clear
-echo -e "${BLUE}TermHost Installer v3.10${NC}"
+echo -e "${BLUE}TermHost Installer v4.0${NC}"
     echo "===================================="
     echo ""
 
@@ -31,52 +31,42 @@ echo_fail() {
 }
 
 # ==================== 1. FIX BROKEN DPKG ====================
-echo_step "1/8" "Fixing broken packages"
+echo_step "1/7" "Fixing broken packages"
 dpkg --configure -a >> /dev/null 2>&1 || true
 apt --fix-broken install -y >> /dev/null 2>&1 || true
 echo_ok
 
 # ==================== 2. UPDATE PACKAGES ====================
-echo_step "2/8" "Updating package repositories"
+echo_step "2/7" "Updating package repositories"
 pkg update -y >> /dev/null 2>&1 || true
 echo_ok
 
-# ==================== 3. INSTALL PACKAGES (with better handling) ====================
-echo_step "3/8" "Installing required packages"
+# ==================== 3. INSTALL CORE PACKAGES ====================
+echo_step "3/7" "Installing core packages"
 
-PACKAGES="nginx php-fpm php php-pdo git curl wget jq unzip mariadb"
+# Core packages that are almost always available
+CORE_PACKAGES="nginx php-fpm php php-pdo git curl wget jq unzip"
 
-install_packages() {
-    pkg install -y $PACKAGES >> /dev/null 2>&1
-}
-
-if install_packages; then
+if pkg install -y $CORE_PACKAGES >> /dev/null 2>&1; then
     echo_ok
 else
     echo_fail
-    echo -e "${YELLOW}Attempting recovery...${NC}"
-    
-    # Try to fix dpkg first
-    dpkg --configure -a >> /dev/null 2>&1 || true
-    apt --fix-broken install -y >> /dev/null 2>&1 || true
-    pkg update -y >> /dev/null 2>&1 || true
-    
-    # Retry installation
-    if install_packages; then
-        echo_ok
-    else
-        echo -e "${RED}Failed to install some packages.${NC}"
-        echo ""
-        echo -e "${YELLOW}Please run this command manually:${NC}"
-        echo -e "${CYAN}pkg install -y $PACKAGES${NC}"
-        echo ""
-        echo -e "After it succeeds, re-run the installer."
-        exit 1
-    fi
+    echo -e "${RED}Failed to install core packages.${NC}"
+    echo "Please run manually:"
+    echo "pkg install -y $CORE_PACKAGES"
+    exit 1
+fi
+
+# Optional: MariaDB (can fail on some devices)
+echo -ne "${YELLOW}Installing MariaDB (optional)... ${NC}"
+if pkg install -y mariadb >> /dev/null 2>&1; then
+    echo -e "${GREEN}OK${NC}"
+else
+    echo -e "${YELLOW}Skipped (not critical)${NC}"
 fi
 
 # ==================== 4. DOWNLOAD FROM GITHUB ====================
-echo_step "4/8" "Downloading full TermHost project from GitHub"
+echo_step "4/7" "Downloading TermHost from GitHub"
 
 if [ -d "$INSTALL_DIR" ]; then
     cd "$INSTALL_DIR" && git pull >> /dev/null 2>&1 || true
@@ -89,25 +79,20 @@ else
 fi
 echo_ok
 
-# Verify termhost.sh and supporting directories
+# Verify critical files
 if [ ! -f "$INSTALL_DIR/termhost.sh" ]; then
-    echo -e "${RED}Critical Error: termhost.sh was not downloaded!${NC}"
-    exit 1
-fi
-
-if [ ! -d "$INSTALL_DIR/sites" ] || [ ! -d "$INSTALL_DIR/config" ]; then
-    echo -e "${RED}Critical Error: Supporting directories missing!${NC}"
+    echo -e "${RED}Critical Error: termhost.sh not found!${NC}"
     exit 1
 fi
 
 # ==================== 5. CREATE DIRECTORIES ====================
-echo_step "5/8" "Creating directories"
+echo_step "5/7" "Creating directories"
 mkdir -p "$INSTALL_DIR/sites/default" "$INSTALL_DIR/vhosts" "$INSTALL_DIR/logs" "$INSTALL_DIR/config"
 mkdir -p "$PREFIX/etc/nginx" "$PREFIX/etc/php-fpm.d"
 echo_ok
 
 # ==================== 6. CREATE CONFIG ====================
-echo_step "6/8" "Creating default configuration"
+echo_step "6/7" "Creating default configuration"
 
 if [ ! -f "$INSTALL_DIR/config/config.json" ]; then
 cat > "$INSTALL_DIR/config/config.json" << 'EOF'
@@ -119,8 +104,8 @@ EOF
 fi
 echo_ok
 
-# ==================== 7. CONFIGURE SERVICES ====================
-echo_step "7/8" "Configuring Nginx and PHP-FPM"
+# ==================== 7. CONFIGURE & FINISH ====================
+echo_step "7/7" "Configuring Nginx and PHP-FPM"
 
 cat > $PREFIX/etc/php-fpm.d/www.conf << 'PHPEOF'
 [www]
@@ -168,27 +153,12 @@ cat > "$INSTALL_DIR/sites/default/index.php" << 'EOF'
 EOF
 echo_ok
 
-# ==================== 8. CREATE BINARY ====================
-echo_step "8/8" "Creating termhost command"
+# Create binary
+echo -e "${YELLOW}Creating termhost command...${NC}"
 chmod +x "$INSTALL_DIR/termhost.sh"
 if [ -L "$BIN_PATH" ]; then rm -f "$BIN_PATH"; fi
 ln -s "$INSTALL_DIR/termhost.sh" "$BIN_PATH"
-echo_ok
 
-# ==================== START SERVICES ====================
-echo -e "${YELLOW}Starting services...${NC}"
-pkill nginx 2>/dev/null || true
-pkill php-fpm 2>/dev/null || true
-pkill mysqld 2>/dev/null || true
-
-php-fpm >/dev/null 2>&1
-nginx >/dev/null 2>&1
-
-if [ "$(jq -r '.use_mariadb' $INSTALL_DIR/config/config.json 2>/dev/null)" = "true" ]; then
-    mysqld_safe --datadir=$PREFIX/var/lib/mysql >/dev/null 2>&1 &
-fi
-
-echo ""
 echo -e "${GREEN}Installation completed successfully!${NC}"
 echo -e "Run: ${YELLOW}termhost${NC}"
 if [ "$(id -u)" -eq 0 ]; then
