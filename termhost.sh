@@ -1,8 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v5.1 - Traditional Menu (Non Real-time)
+# TermHost v5.2 - Use upgrade.sh for updates
 
-VERSION="5.1"
+VERSION="5.2"
 
 CONFIG="$HOME/termhost/config/config.json"
 SITES_DIR="$HOME/termhost/sites"
@@ -114,7 +114,7 @@ main_menu() {
     echo "  8) Database Management"
     echo "  9) Fix Permissions & Errors"
     echo "  10) Change Port"
-    echo "  11) Update TermHost"
+    echo "  11) Upgrade TermHost"
     
     if is_root; then
         echo -e "  ${PURPLE}12) Termux:Boot Setup${NC}"
@@ -125,17 +125,15 @@ main_menu() {
     echo ""
 }
 
-update_termhost() {
-    echo -e "${YELLOW}Updating TermHost...${NC}"
-    if [ -d "$INSTALL_DIR" ]; then
-        cd "$INSTALL_DIR" || return
-        if git pull; then
-            echo -e "${GREEN}Updated successfully! Please restart TermHost.${NC}"
-        else
-            echo -e "${RED}Update failed.${NC}"
-        fi
+upgrade_termhost() {
+    if [ -f "$INSTALL_DIR/upgrade.sh" ]; then
+        bash "$INSTALL_DIR/upgrade.sh"
+    else
+        echo -e "${YELLOW}Downloading upgrade tool...${NC}"
+        curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/upgrade.sh -o /tmp/upgrade.sh
+        bash /tmp/upgrade.sh
+        rm -f /tmp/upgrade.sh
     fi
-    read -p "Press enter to continue..."
 }
 
 change_port() {
@@ -345,7 +343,7 @@ main() {
             8) database_menu ;;
             9) fix_permissions ;;
             10) change_port ;;
-            11) update_termhost ;;
+            11) upgrade_termhost ;;
             0) echo "Goodbye!"; exit 0 ;;
             *) echo -e "${RED}Invalid option!${NC}" ;;
         esac

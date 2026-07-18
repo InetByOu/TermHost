@@ -1,12 +1,6 @@
-# TermHost v5.1
+# TermHost v5.2
 
-> Traditional Stable Menu
-
-## Key Change in v5.1
-
-- Downgraded from real-time dashboard to traditional menu
-- More stable and glitch-free experience
-- Simpler and more reliable menu system
+> Lightweight & Smart Upgrade System
 
 ## Installation
 
@@ -19,11 +13,35 @@ Run:
 termhost
 ```
 
+## Smart Upgrade System
+
+TermHost now has a dedicated upgrade tool that:
+
+- Only downloads the core script (not the full repo)
+- Automatically checks current vs latest version
+- Creates automatic backup before upgrading
+- Preserves all your websites and configuration
+
+### How to Upgrade:
+
+**Option 1:** From inside TermHost
+Choose **Menu 11) Upgrade TermHost**
+
+**Option 2:** Run directly
+```bash
+bash ~/termhost/upgrade.sh
+```
+
+**Option 3:** One-liner
+```bash
+curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/upgrade.sh | bash
+```
+
 ## Features
 
 - Traditional Stable Menu
-- Change Port (with backup)
-- Easy Update
+- Smart Upgrade (core only + backup)
+- Change Port (with automatic backup)
 - SD Card Hosting
 - Termux:Boot & Auto Swap (Root)
 
