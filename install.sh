@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Installer v4.4 - Stronger Package Recovery
+# TermHost Installer v4.5 - Lightweight + Smart Update
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,107 +13,56 @@ INSTALL_DIR="$HOME/termhost"
 BIN_PATH="$PREFIX/bin/termhost"
 
 clear
-echo -e "${BLUE}TermHost Installer v4.4${NC}"
+echo -e "${BLUE}TermHost Installer v4.5${NC}"
     echo "===================================="
     echo ""
 
-# Function to print status
-echo_step() {
-    echo -e "${YELLOW}[$1]${NC} $2..."
-}
-
-echo_ok() {
-    echo -e "${GREEN}OK${NC}"
-}
-
-echo_fail() {
-    echo -e "${RED}FAILED${NC}"
-}
-
-# ==================== 1. AGGRESSIVE DPKG FIX ====================
-echo_step "1/7" "Fixing package system"
-
+# ==================== FIX BROKEN DPKG ====================
+echo -e "${YELLOW}[1/6]${NC} Fixing broken packages..."
 dpkg --configure -a >> /dev/null 2>&1 || true
 apt --fix-broken install -y >> /dev/null 2>&1 || true
+echo -e "${GREEN}Done${NC}"
+
+# ==================== UPDATE PACKAGES ====================
+echo -e "${YELLOW}[2/6]${NC} Updating package repositories..."
 pkg update -y >> /dev/null 2>&1 || true
+echo -e "${GREEN}Done${NC}"
 
-echo_ok
+# ==================== INSTALL CORE PACKAGES ====================
+echo -e "${YELLOW}[3/6]${NC} Installing core packages..."
 
-# ==================== 2. UPDATE & UPGRADE ====================
-echo_step "2/7" "Updating and upgrading packages"
-pkg upgrade -y >> /dev/null 2>&1 || true
-echo_ok
-
-# ==================== 3. INSTALL PACKAGES WITH SMART FALLBACK ====================
-echo_step "3/7" "Installing packages"
-
-PACKAGES=(
-    "nginx"
-    "php-fpm"
-    "php"
-    "git"
-    "curl"
-    "wget"
-    "jq"
-    "unzip"
-    "mariadb"
-)
-
-failed_packages=()
-
-for entry in "${PACKAGES[@]}"; do
-    if [[ "$entry" == *":"* ]]; then
-        main="${entry%%:*}"
-        alt="${entry##*:}"
-    else
-        main="$entry"
-        alt=""
-    fi
-
-    if pkg install -y "$main" >> /dev/null 2>&1; then
-        echo -e "  ${GREEN}✓${NC} $main"
-    elif [ -n "$alt" ] && pkg install -y "$alt" >> /dev/null 2>&1; then
-        echo -e "  ${GREEN}✓${NC} $alt (fallback)"
-    else
-        echo -e "  ${RED}✗${NC} $main (skipped)"
-        failed_packages+=("$main")
-    fi
-done
-
-if [ ${#failed_packages[@]} -gt 0 ]; then
-    echo -e "${YELLOW}Some packages failed: ${failed_packages[*]}${NC}"
-fi
-
-echo_ok
-
-# ==================== 4. DOWNLOAD FROM GITHUB ====================
-echo_step "4/7" "Downloading TermHost from GitHub"
-
-if [ -d "$INSTALL_DIR" ]; then
-    cd "$INSTALL_DIR" && git pull >> /dev/null 2>&1 || true
+CORE="nginx php-fpm php git curl wget jq unzip"
+if pkg install -y $CORE >> /dev/null 2>&1; then
+    echo -e "${GREEN}Done${NC}"
 else
-    if ! git clone https://github.com/InetByOu/TermHost.git "$INSTALL_DIR" >> /dev/null 2>&1; then
-        echo_fail
-        echo -e "${RED}Failed to download from GitHub.${NC}"
-        exit 1
-    fi
-fi
-echo_ok
-
-if [ ! -f "$INSTALL_DIR/termhost.sh" ]; then
-    echo -e "${RED}Critical Error: termhost.sh not found!${NC}"
+    echo -e "${RED}Failed to install core packages.${NC}"
+    echo "Please run: pkg install -y $CORE"
     exit 1
 fi
 
-# ==================== 5. CREATE DIRECTORIES ====================
-echo_step "5/7" "Creating directories"
-mkdir -p "$INSTALL_DIR/sites/default" "$INSTALL_DIR/vhosts" "$INSTALL_DIR/logs" "$INSTALL_DIR/config"
-mkdir -p "$PREFIX/etc/nginx" "$PREFIX/etc/php-fpm.d"
-echo_ok
+# MariaDB optional
+echo -ne "${YELLOW}Installing MariaDB (optional)... ${NC}"
+if pkg install -y mariadb >> /dev/null 2>&1; then
+    echo -e "${GREEN}OK${NC}"
+else
+    echo -e "${YELLOW}Skipped${NC}"
+fi
 
-# ==================== 6. CREATE CONFIG ====================
-echo_step "6/7" "Creating default configuration"
+# ==================== DOWNLOAD ONLY NEEDED FILES ====================
+echo -e "${YELLOW}[4/6]${NC} Downloading TermHost (script + config only)..."
 
+mkdir -p "$INSTALL_DIR/config"
+
+# Download termhost.sh
+if curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/termhost.sh -o "$INSTALL_DIR/termhost.sh"; then
+    chmod +x "$INSTALL_DIR/termhost.sh"
+    echo -e "  ${GREEN}✓${NC} termhost.sh downloaded"
+else
+    echo -e "  ${RED}✗${NC} Failed to download termhost.sh"
+    exit 1
+fi
+
+# Create default config if not exists
 if [ ! -f "$INSTALL_DIR/config/config.json" ]; then
 cat > "$INSTALL_DIR/config/config.json" << 'EOF'
 {
@@ -121,11 +70,21 @@ cat > "$INSTALL_DIR/config/config.json" << 'EOF'
   "use_mariadb": true
 }
 EOF
+    echo -e "  ${GREEN}✓${NC} Default config created"
+else
+    echo -e "  ${YELLOW}✓${NC} Existing config kept"
 fi
-echo_ok
 
-# ==================== 7. CONFIGURE & FINISH ====================
-echo_step "7/7" "Configuring Nginx and PHP-FPM"
+echo -e "${GREEN}Done${NC}"
+
+# ==================== CREATE DIRECTORIES ====================
+echo -e "${YELLOW}[5/6]${NC} Creating directories..."
+mkdir -p "$INSTALL_DIR/sites/default" "$INSTALL_DIR/vhosts" "$INSTALL_DIR/logs"
+mkdir -p "$PREFIX/etc/nginx" "$PREFIX/etc/php-fpm.d"
+echo -e "${GREEN}Done${NC}"
+
+# ==================== CONFIGURE SERVICES ====================
+echo -e "${YELLOW}[6/6]${NC} Configuring Nginx and PHP-FPM..."
 
 cat > $PREFIX/etc/php-fpm.d/www.conf << 'PHPEOF'
 [www]
@@ -171,14 +130,15 @@ NGINXEOF
 cat > "$INSTALL_DIR/sites/default/index.php" << 'EOF'
 <?php echo "TermHost is ready!"; ?>
 EOF
-echo_ok
+echo -e "${GREEN}Done${NC}"
 
-# Create binary
+# Create / update binary
 echo -e "${YELLOW}Creating termhost command...${NC}"
 chmod +x "$INSTALL_DIR/termhost.sh"
 if [ -L "$BIN_PATH" ]; then rm -f "$BIN_PATH"; fi
 ln -s "$INSTALL_DIR/termhost.sh" "$BIN_PATH"
 
+echo ""
 echo -e "${GREEN}Installation completed successfully!${NC}"
 echo -e "Run: ${YELLOW}termhost${NC}"
 if [ "$(id -u)" -eq 0 ]; then
