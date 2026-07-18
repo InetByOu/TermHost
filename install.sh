@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Installer v3.9 - Full Repository Download
+# TermHost Installer v3.9 - Termux Only
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -9,6 +9,7 @@ BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 NC='\033[0m'
 
+# Termux specific paths
 INSTALL_DIR="$HOME/termhost"
 BIN_PATH="$PREFIX/bin/termhost"
 
@@ -61,38 +62,33 @@ else
     fi
 fi
 
-# ==================== 4. DOWNLOAD FULL REPOSITORY FROM GITHUB ====================
+# ==================== 4. DOWNLOAD FROM GITHUB ====================
 echo_step "4/8" "Downloading full TermHost project from GitHub"
 
-echo -e "${CYAN}This will download termhost.sh + all supporting directories (sites, vhosts, config, logs, etc.)${NC}"
-
 if [ -d "$INSTALL_DIR" ]; then
-    echo -e "${YELLOW}Updating existing installation...${NC}"
     cd "$INSTALL_DIR" && git pull >> /dev/null 2>&1 || true
 else
     if ! git clone https://github.com/InetByOu/TermHost.git "$INSTALL_DIR" >> /dev/null 2>&1; then
         echo_fail
         echo -e "${RED}Failed to download from GitHub.${NC}"
-        echo -e "Please check your internet connection."
         exit 1
     fi
 fi
 echo_ok
 
-# Verify that termhost.sh exists
+# Verify termhost.sh and supporting directories
 if [ ! -f "$INSTALL_DIR/termhost.sh" ]; then
-    echo -e "${RED}Critical Error: termhost.sh was not downloaded from GitHub!${NC}"
+    echo -e "${RED}Critical Error: termhost.sh not found after download!${NC}"
     exit 1
 fi
 
-# Verify supporting directories exist
 if [ ! -d "$INSTALL_DIR/sites" ] || [ ! -d "$INSTALL_DIR/config" ]; then
-    echo -e "${RED}Critical Error: Supporting directories were not downloaded properly!${NC}"
+    echo -e "${RED}Critical Error: Supporting directories missing after download!${NC}"
     exit 1
 fi
 
 # ==================== 5. CREATE DIRECTORIES ====================
-echo_step "5/8" "Creating additional directories"
+echo_step "5/8" "Creating directories"
 mkdir -p "$INSTALL_DIR/sites/default" "$INSTALL_DIR/vhosts" "$INSTALL_DIR/logs" "$INSTALL_DIR/config"
 mkdir -p "$PREFIX/etc/nginx" "$PREFIX/etc/php-fpm.d"
 echo_ok
