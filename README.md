@@ -1,22 +1,49 @@
-# TermHost v3.1
+# TermHost
 
-> Improved Process Management
+> Termux Web Hosting Manager
 
-## Key Improvements
+Tool interaktif untuk menjalankan web hosting (Nginx + PHP-FPM + MariaDB) langsung di Termux dengan dukungan Virtual Host dan akses publik.
 
-- Better process handling using dedicated `stop_service()` and `stop_all_services()` functions
-- Safer start/stop of Nginx, PHP-FPM, MariaDB, and tunnels
-- Reduced risk of runaway processes
-- Cleaner and more reliable service management
-
-## One Command Installation
+## Instalasi (One Command)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/install.sh | bash
 ```
 
-Run:
+Setelah install, jalankan:
 ```bash
+termhost
+```
+
+## Fitur Utama
+
+- **Virtual Host** — Akses website via `http://namawebsite.localhost:8080`
+- **Hosting dari SD Card** — Serve file langsung dari storage
+- **Auto Start** — Bisa jalan otomatis saat Termux dibuka
+- **Public Access** — Ngrok, Cloudflare Tunnel, localhost.run
+- **Database Management** — Buat & kelola database MariaDB
+- **Termux:Boot** — Auto start saat device boot (khusus root)
+- **Auto Swap** — Buat swap otomatis jika RAM < 2GB (khusus root)
+- **Error Handling** — Lebih aman dan user-friendly
+
+## Cara Penggunaan
+
+1. Jalankan `termhost`
+2. Pilih menu yang diinginkan
+3. Buat website baru atau host dari SD Card
+4. Start service
+5. Akses via browser: `http://namawebsite.localhost:8080`
+
+## Untuk User Root
+
+- Menu **Termux:Boot** (auto start saat boot)
+- Menu **Swap Management** (otomatis jika RAM rendah)
+- Bisa pakai Magisk service untuk swap
+
+## Update
+
+```bash
+cd ~/termhost && git pull
 termhost
 ```
 
