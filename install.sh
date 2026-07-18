@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Installer v2.4 - Root Aware
+# TermHost Installer v3.1 - With dpkg Error Handling
 
 set -e
 
@@ -16,31 +16,56 @@ BIN_PATH="$PREFIX/bin/termhost"
 
 clear
 echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║           TermHost Installer v2.4                  ║${NC}"
+    echo -e "${BLUE}║           TermHost Installer v3.1                  ║${NC}"
     echo -e "${BLUE}╚════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
-# Root Detection during install
+# ==================== FIX BROKEN DPKG (Common Termux Error) ====================
+echo -e "${YELLOW}[Pre-check]${NC} Checking for broken packages..."
+
+if dpkg --audit 2>/dev/null | grep -q 'dpkg'; then
+    echo -e "${YELLOW}Detected broken dpkg state. Attempting to fix...${NC}"
+    
+    dpkg --configure -a 2>/dev/null || true
+    apt --fix-broken install -y 2>/dev/null || true
+    pkg update -y 2>/dev/null || true
+    
+    echo -e "${GREEN}Broken packages fixed.${NC}"
+fi
+
+# ==================== ROOT DETECTION ====================
 if [ "$(id -u)" -eq 0 ]; then
     echo -e "${PURPLE}[INFO] Running as ROOT user${NC}"
-    echo -e "${YELLOW}Some features will be enabled for root.${NC}"
+    echo -e "${YELLOW}Extra features will be enabled.${NC}"
     echo ""
 fi
 
-echo -e "${YELLOW}[1/6]${NC} Updating packages..."
-pkg update -y && pkg upgrade -y
+# ==================== MAIN INSTALLATION ====================
+echo -e "${YELLOW}[1/6]${NC} Updating Termux packages..."
+pkg update -y && pkg upgrade -y || {
+    echo -e "${YELLOW}Warning: pkg upgrade encountered issues. Trying to fix...${NC}"
+    dpkg --configure -a 2>/dev/null || true
+    apt --fix-broken install -y 2>/dev/null || true
+    pkg update -y
+}
 
-echo -e "${YELLOW}[2/6]${NC} Installing packages..."
-pkg install -y nginx php-fpm php php-mysql mariadb git curl wget jq
+echo -e "${YELLOW}[2/6]${NC} Installing required packages..."
+pkg install -y nginx php-fpm php php-mysql mariadb git curl wget jq unzip || {
+    echo -e "${RED}Failed to install some packages. Trying to fix dpkg...${NC}"
+    dpkg --configure -a
+    apt --fix-broken install -y
+    pkg install -y nginx php-fpm php php-mysql mariadb git curl wget jq unzip
+}
 
-echo -e "${YELLOW}[3/6]${NC} Setting up TermHost..."
+echo -e "${YELLOW}[3/6]${NC} Setting up TermHost directory..."
 if [ -d "$INSTALL_DIR" ]; then
+    echo -e "${YELLOW}TermHost already exists. Updating...${NC}"
     cd "$INSTALL_DIR" && git pull
 else
     git clone https://github.com/InetByOu/TermHost.git "$INSTALL_DIR"
 fi
 
-mkdir -p "$INSTALL_DIR"/vhosts "$INSTALL_DIR"/logs
+mkdir -p "$INSTALL_DIR/vhosts" "$INSTALL_DIR/logs"
 
 if [ ! -f "$INSTALL_DIR/config/config.json" ]; then
 cat > "$INSTALL_DIR/config/config.json" << 'EOF'
@@ -51,7 +76,7 @@ cat > "$INSTALL_DIR/config/config.json" << 'EOF'
 EOF
 fi
 
-echo -e "${YELLOW}[4/6]${NC} Configuring services..."
+echo -e "${YELLOW}[4/6]${NC} Configuring Nginx & PHP-FPM..."
 
 cat > $PREFIX/etc/php-fpm.d/www.conf << 'PHPEOF'
 [www]
@@ -96,15 +121,15 @@ NGINXEOF
 
 mkdir -p "$INSTALL_DIR/sites/default"
 cat > "$INSTALL_DIR/sites/default/index.php" << 'EOF'
-<?php echo "TermHost Ready"; ?>
+<?php echo "TermHost is ready!"; ?>
 EOF
 
-echo -e "${YELLOW}[5/6]${NC} Creating command..."
+echo -e "${YELLOW}[5/6]${NC} Creating 'termhost' command..."
 chmod +x "$INSTALL_DIR/termhost.sh"
 if [ -L "$BIN_PATH" ]; then rm -f "$BIN_PATH"; fi
 ln -s "$INSTALL_DIR/termhost.sh" "$BIN_PATH"
 
-echo -e "${YELLOW}[6/6]${NC} Starting services..."
+echo -e "${YELLOW}[6/6]${NC} Starting services for the first time..."
 pkill nginx 2>/dev/null || true
 pkill php-fpm 2>/dev/null || true
 pkill mysqld 2>/dev/null || true
@@ -117,8 +142,12 @@ if [ "$(jq -r '.use_mariadb' $INSTALL_DIR/config/config.json 2>/dev/null)" = "tr
 fi
 
 echo ""
-echo -e "${GREEN}TermHost installed successfully!${NC}"
-if [ "$(id -u)" -eq 0 ]; then
-    echo -e "${PURPLE}Running as ROOT - Extra features enabled.${NC}"
-fi
-echo -e "Run: ${YELLOW}termhost${NC}"
+echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║     TermHost installed successfully!               ║${NC}"
+    echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "You can now run: ${YELLOW}termhost${NC}"
+    echo ""
+    if [ "$(id -u)" -eq 0 ]; then
+        echo -e "${PURPLE}Running as ROOT - Extra features enabled.${NC}"
+    fi
