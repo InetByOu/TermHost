@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Installer v3.2 - Better Package Handling
+# TermHost Smart Installer v3.3
 
 set -e
 
@@ -16,66 +16,94 @@ BIN_PATH="$PREFIX/bin/termhost"
 
 clear
 echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║           TermHost Installer v3.2                  ║${NC}"
+    echo -e "${BLUE}║           TermHost Smart Installer v3.3            ║${NC}"
     echo -e "${BLUE}╚════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
 # ==================== FIX BROKEN DPKG ====================
-echo -e "${YELLOW}[Pre-check]${NC} Fixing broken packages if any..."
+echo -e "${YELLOW}[Pre-check]${NC} Fixing broken dpkg if needed..."
 dpkg --configure -a 2>/dev/null || true
 apt --fix-broken install -y 2>/dev/null || true
 
-# ==================== UPDATE & UPGRADE REPO ====================
-echo -e "${YELLOW}[1/7]${NC} Updating package list and upgrading..."
+# ==================== UPDATE & UPGRADE ====================
+echo -e "${YELLOW}[1/8]${NC} Updating package repositories..."
 pkg update -y && pkg upgrade -y || {
-    echo -e "${YELLOW}Warning: Upgrade had issues. Fixing dpkg...${NC}"
+    echo -e "${YELLOW}Fixing dpkg after upgrade issue...${NC}"
     dpkg --configure -a 2>/dev/null || true
     pkg update -y
 }
 
-# ==================== CHECK PACKAGE AVAILABILITY ====================
-echo -e "${YELLOW}[2/7]${NC} Checking available packages..."
+# ==================== SMART PACKAGE CHECK ====================
+echo -e "${YELLOW}[2/8]${NC} Checking available packages in repository..."
 
-PHP_MYSQL_PKG=""
-if pkg list-all 2>/dev/null | grep -q "php-mysql"; then
-    PHP_MYSQL_PKG="php-mysql"
-    echo -e "${GREEN}Found: php-mysql${NC}"
-else
-    echo -e "${YELLOW}php-mysql not available. Using alternative (php).${NC}"
-fi
+AVAILABLE_PACKAGES=$(pkg list-all 2>/dev/null)
+
+check_pkg() {
+    echo "$AVAILABLE_PACKAGES" | grep -q "^$1 "
+}
+
+PACKAGES_TO_INSTALL=""
+
+add_pkg() {
+    if check_pkg "$1"; then
+        PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $1"
+        echo -e "  ${GREEN}✓${NC} $1"
+    else
+        echo -e "  ${YELLOW}✗${NC} $1 (not available, skipping)"
+    fi
+}
+
+add_pkg nginx
+add_pkg php-fpm
+add_pkg php
+add_pkg php-pdo
+add_pkg php-pdo-mysql
+add_pkg php-mysql
+add_pkg git
+add_pkg curl
+add_pkg wget
+add_pkg jq
+add_pkg unzip
+add_pkg mariadb
 
 # ==================== ROOT DETECTION ====================
 if [ "$(id -u)" -eq 0 ]; then
-    echo -e "${PURPLE}[INFO] Running as ROOT user${NC}"
-    echo -e "${YELLOW}Extra features will be enabled.${NC}"
-    echo ""
+    echo -e "${PURPLE}[INFO] Running as ROOT${NC}"
 fi
 
 # ==================== INSTALL PACKAGES ====================
-echo -e "${YELLOW}[3/7]${NC} Installing required packages..."
+echo -e "${YELLOW}[3/8]${NC} Installing available packages..."
 
-PACKAGES="nginx php-fpm php git curl wget jq unzip"
-
-if [ -n "$PHP_MYSQL_PKG" ]; then
-    PACKAGES="$PACKAGES $PHP_MYSQL_PKG"
-fi
-
-pkg install -y $PACKAGES || {
-    echo -e "${RED}Some packages failed. Trying to fix...${NC}"
-    dpkg --configure -a
-    apt --fix-broken install -y
-    pkg install -y $PACKAGES
-}
-
-echo -e "${YELLOW}[4/7]${NC} Setting up TermHost directory..."
-if [ -d "$INSTALL_DIR" ]; then
-    echo -e "${YELLOW}Updating existing TermHost...${NC}"
-    cd "$INSTALL_DIR" && git pull
+if [ -n "$PACKAGES_TO_INSTALL" ]; then
+    pkg install -y $PACKAGES_TO_INSTALL || {
+        echo -e "${RED}Some packages failed. Fixing dpkg...${NC}"
+        dpkg --configure -a
+        apt --fix-broken install -y
+        pkg install -y $PACKAGES_TO_INSTALL
+    }
 else
-    git clone https://github.com/InetByOu/TermHost.git "$INSTALL_DIR"
+    echo -e "${RED}No packages to install!${NC}"
 fi
 
-mkdir -p "$INSTALL_DIR/vhosts" "$INSTALL_DIR/logs"
+# ==================== CHECK & CREATE DIRECTORIES ====================
+echo -e "${YELLOW}[4/8]${NC} Checking and creating required directories..."
+
+mkdir -p "$INSTALL_DIR/sites/default"
+mkdir -p "$INSTALL_DIR/vhosts"
+mkdir -p "$INSTALL_DIR/logs"
+mkdir -p "$INSTALL_DIR/config"
+
+# Check important system directories
+if [ ! -d "$PREFIX/etc/nginx" ]; then
+    mkdir -p "$PREFIX/etc/nginx"
+fi
+
+if [ ! -d "$PREFIX/etc/php-fpm.d" ]; then
+    mkdir -p "$PREFIX/etc/php-fpm.d"
+fi
+
+# ==================== CREATE DEFAULT CONFIG ====================
+echo -e "${YELLOW}[5/8]${NC} Creating default configuration..."
 
 if [ ! -f "$INSTALL_DIR/config/config.json" ]; then
 cat > "$INSTALL_DIR/config/config.json" << 'EOF'
@@ -86,7 +114,8 @@ cat > "$INSTALL_DIR/config/config.json" << 'EOF'
 EOF
 fi
 
-echo -e "${YELLOW}[5/7]${NC} Configuring Nginx & PHP-FPM..."
+# ==================== CONFIGURE NGINX & PHP-FPM ====================
+echo -e "${YELLOW}[6/8]${NC} Configuring Nginx and PHP-FPM..."
 
 cat > $PREFIX/etc/php-fpm.d/www.conf << 'PHPEOF'
 [www]
@@ -129,17 +158,19 @@ http {
 }
 NGINXEOF
 
-mkdir -p "$INSTALL_DIR/sites/default"
 cat > "$INSTALL_DIR/sites/default/index.php" << 'EOF'
 <?php echo "TermHost is ready!"; ?>
 EOF
 
-echo -e "${YELLOW}[6/7]${NC} Creating 'termhost' command..."
+# ==================== CREATE BINARY ====================
+echo -e "${YELLOW}[7/8]${NC} Creating 'termhost' command..."
 chmod +x "$INSTALL_DIR/termhost.sh"
 if [ -L "$BIN_PATH" ]; then rm -f "$BIN_PATH"; fi
 ln -s "$INSTALL_DIR/termhost.sh" "$BIN_PATH"
 
-echo -e "${YELLOW}[7/7]${NC} Starting services..."
+# ==================== START SERVICES ====================
+echo -e "${YELLOW}[8/8]${NC} Starting services for the first time..."
+
 pkill nginx 2>/dev/null || true
 pkill php-fpm 2>/dev/null || true
 pkill mysqld 2>/dev/null || true
@@ -156,7 +187,7 @@ echo -e "${GREEN}╔════════════════════
     echo -e "${GREEN}║     TermHost installed successfully!               ║${NC}"
     echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "Run: ${YELLOW}termhost${NC}"
+    echo -e "You can now run: ${YELLOW}termhost${NC}"
     if [ "$(id -u)" -eq 0 ]; then
         echo -e "${PURPLE}Running as ROOT - Extra features enabled.${NC}"
     fi
