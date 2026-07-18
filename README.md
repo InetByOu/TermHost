@@ -1,18 +1,20 @@
-# TermHost v4.5
+# TermHost v5.0
 
-> Lightweight Installer + Smart Update
+> Production-Ready Improvements
+
+## Key Upgrades in v5.0
+
+- Added config backup before changing port
+- Improved error handling in service startup (especially PHP-FPM)
+- Added version tracking
+- Safer and cleaner service management
+- Better user feedback on errors
 
 ## Installation
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/install.sh | bash
 ```
-
-The installer now:
-- Only downloads the necessary files (`termhost.sh` + config)
-- Does **not** clone the full repository
-- Safely updates `termhost.sh` if an old version exists
-- Keeps your existing configuration
 
 Run:
 ```bash
@@ -22,9 +24,9 @@ termhost
 ## Features
 
 - Real-time Dashboard
-- Change Port
+- Easy Update
+- Change Port (with backup)
 - SD Card Hosting
-- Easy Update from inside the app
 - Termux:Boot & Auto Swap (Root)
 
 ## Author

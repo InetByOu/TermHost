@@ -1,6 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v4.9 - Real-time Dashboard (Input Protected)
+# TermHost v5.0 - Production Ready (Safe Upgrade)
+
+VERSION="5.0"
 
 CONFIG="$HOME/termhost/config/config.json"
 SITES_DIR="$HOME/termhost/sites"
@@ -23,14 +25,21 @@ get_port() { jq -r '.port // 8080' "$CONFIG" 2>/dev/null || echo 8080; }
 
 handle_error() {
     echo -e "${RED}[Error]${NC} $1"
-    sleep 1.2
+    sleep 1.5
+}
+
+backup_config() {
+    local file="$1"
+    if [ -f "$file" ]; then
+        cp "$file" "${file}.bak.$(date +%Y%m%d_%H%M%S)"
+    fi
 }
 
 print_header() {
     if is_root; then
-        echo -e "${PURPLE}TermHost v4.9${NC} - Root Mode | Port: $(get_port)"
+        echo -e "${PURPLE}TermHost v${VERSION}${NC} - Root Mode | Port: $(get_port)"
     else
-        echo -e "${BLUE}TermHost v4.9${NC} | Port: $(get_port)"
+        echo -e "${BLUE}TermHost v${VERSION}${NC} | Port: $(get_port)"
     fi
     echo "===================================="
 }
@@ -112,7 +121,6 @@ show_menu() {
     fi
     
     echo ""
-    echo -e "${CYAN}(Auto refresh every 4s. Press number anytime)${NC}"
 }
 
 show_dashboard() {
@@ -123,7 +131,6 @@ show_dashboard() {
         show_active_domains
         show_menu
 
-        # Wait for input. If user starts typing, we don't force refresh
         if read -t 4 -n 1 choice 2>/dev/null; then
             case $choice in
                 1) create_website; return ;;
@@ -132,7 +139,7 @@ show_dashboard() {
                 4) start_services; return ;;
                 5) stop_services; return ;;
                 6) setup_tunnel; return ;;
-                7) ;;                    # manual refresh
+                7) ;; 
                 8) database_menu; return ;;
                 9) fix_permissions; return ;;
                 10) change_port; return ;;
@@ -141,7 +148,6 @@ show_dashboard() {
                 *) ;; 
             esac
         fi
-        # If no input after timeout, loop will refresh naturally
     done
 }
 
@@ -164,9 +170,12 @@ change_port() {
     read -p "New port: " new_port
 
     if ! [[ "$new_port" =~ ^[0-9]+$ ]]; then
-        handle_error "Invalid port"
+        handle_error "Invalid port number"
         return
     fi
+
+    # Backup current Nginx config
+    backup_config "$PREFIX/etc/nginx/nginx.conf"
 
     jq ".port = $new_port" "$CONFIG" > tmp.json && mv tmp.json "$CONFIG" 2>/dev/null || echo "{ \"port\": $new_port }" > "$CONFIG"
     sed -i "s/listen .*;/listen       $new_port;/" $PREFIX/etc/nginx/nginx.conf
@@ -283,17 +292,34 @@ list_websites() {
 
 start_services() {
     echo -e "${YELLOW}Starting services...${NC}"
-    stop_services
+    
+    # Stop first
+    pkill nginx 2>/dev/null || true
+    pkill php-fpm 2>/dev/null || true
+    pkill mysqld 2>/dev/null || true
+
     sleep 1
 
-    php-fpm >/dev/null 2>&1 || handle_error "Failed to start PHP-FPM"
-    nginx >/dev/null 2>&1 || handle_error "Failed to start Nginx"
+    # Start PHP-FPM
+    if ! php-fpm >/dev/null 2>&1; then
+        handle_error "Failed to start PHP-FPM. Check config or port 9000."
+        return 1
+    fi
 
+    sleep 1
+
+    # Start Nginx
+    if ! nginx >/dev/null 2>&1; then
+        handle_error "Failed to start Nginx. Check port $(get_port) or config."
+        return 1
+    fi
+
+    # Start MariaDB if enabled
     if [ "$(jq -r '.use_mariadb' $CONFIG 2>/dev/null)" = "true" ]; then
         mysqld_safe --datadir=$PREFIX/var/lib/mysql >/dev/null 2>&1 &
     fi
 
-    echo -e "${GREEN}Services started.${NC}"
+    echo -e "${GREEN}Services started successfully.${NC}"
 }
 
 stop_services() {
