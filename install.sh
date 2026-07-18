@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Installer v3.7 - Final Robust Version
+# TermHost Installer v3.8 - Ensure Download from GitHub
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,7 +13,7 @@ INSTALL_DIR="$HOME/termhost"
 BIN_PATH="$PREFIX/bin/termhost"
 
 clear
-echo -e "${BLUE}TermHost Installer v3.7${NC}"
+echo -e "${BLUE}TermHost Installer v3.8${NC}"
     echo "===================================="
     echo ""
 
@@ -61,24 +61,27 @@ else
     fi
 fi
 
-# ==================== 4. CLONE / UPDATE REPO ====================
-echo_step "4/8" "Downloading TermHost"
+# ==================== 4. DOWNLOAD FROM GITHUB ====================
+echo_step "4/8" "Downloading TermHost from GitHub"
 
 if [ -d "$INSTALL_DIR" ]; then
+    echo -e "${YELLOW}TermHost folder already exists. Updating...${NC}"
     cd "$INSTALL_DIR" && git pull >> /dev/null 2>&1 || true
 else
+    echo -e "${CYAN}Cloning from GitHub...${NC}"
     if ! git clone https://github.com/InetByOu/TermHost.git "$INSTALL_DIR" >> /dev/null 2>&1; then
         echo_fail
-        echo -e "${RED}Failed to download TermHost. Check your internet.${NC}"
+        echo -e "${RED}Failed to download from GitHub.${NC}"
+        echo -e "Please check your internet connection and try again."
         exit 1
     fi
 fi
 echo_ok
 
-# Critical check: termhost.sh must exist
+# Critical safety check
 if [ ! -f "$INSTALL_DIR/termhost.sh" ]; then
-    echo -e "${RED}Critical Error: termhost.sh was not found after download!${NC}"
-    echo -e "Please report this bug."
+    echo -e "${RED}Critical Error: termhost.sh was not downloaded from GitHub!${NC}"
+    echo -e "The installation cannot continue."
     exit 1
 fi
 
