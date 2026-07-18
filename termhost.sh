@@ -1,8 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v5.0 - Production Ready (Safe Upgrade)
+# TermHost v5.1 - Traditional Menu (Non Real-time)
 
-VERSION="5.0"
+VERSION="5.1"
 
 CONFIG="$HOME/termhost/config/config.json"
 SITES_DIR="$HOME/termhost/sites"
@@ -26,13 +26,6 @@ get_port() { jq -r '.port // 8080' "$CONFIG" 2>/dev/null || echo 8080; }
 handle_error() {
     echo -e "${RED}[Error]${NC} $1"
     sleep 1.5
-}
-
-backup_config() {
-    local file="$1"
-    if [ -f "$file" ]; then
-        cp "$file" "${file}.bak.$(date +%Y%m%d_%H%M%S)"
-    fi
 }
 
 print_header() {
@@ -80,6 +73,7 @@ show_status() {
 
     local ram=$(free -m | awk '/^Mem:/ {print $2}')
     echo -e "  RAM        : ${ram} MB"
+    echo ""
 }
 
 show_active_domains() {
@@ -105,50 +99,30 @@ show_active_domains() {
     if [ "$has_url" = false ]; then
         echo -e "  ${YELLOW}(No active public tunnel)${NC}"
     fi
-}
-
-show_menu() {
-    echo -e "${YELLOW}Main Menu:${NC}"
-    echo "  1) Create Website          6) Setup Tunnel"
-    echo "  2) Create from Storage     7) Refresh Status"
-    echo "  3) List Websites           8) Database"
-    echo "  4) Start Services          9) Fix Permissions"
-    echo "  5) Stop Services          10) Change Port"
-    echo "  11) Update TermHost       0) Exit"
-    
-    if is_root; then
-        echo -e "  ${PURPLE}12) Termux:Boot${NC}         ${PURPLE}13) Swap Management${NC}"
-    fi
-    
     echo ""
 }
 
-show_dashboard() {
-    while true; do
-        clear
-        print_header
-        show_status
-        show_active_domains
-        show_menu
-
-        if read -t 4 -n 1 choice 2>/dev/null; then
-            case $choice in
-                1) create_website; return ;;
-                2) create_from_storage; return ;;
-                3) list_websites; return ;;
-                4) start_services; return ;;
-                5) stop_services; return ;;
-                6) setup_tunnel; return ;;
-                7) ;; 
-                8) database_menu; return ;;
-                9) fix_permissions; return ;;
-                10) change_port; return ;;
-                11) update_termhost; return ;;
-                0) echo "Goodbye!"; exit 0 ;;
-                *) ;; 
-            esac
-        fi
-    done
+main_menu() {
+    echo -e "${YELLOW}Main Menu:${NC}"
+    echo "  1) Create New Website (Virtual Host)"
+    echo "  2) Create Website from SD Card / Storage"
+    echo "  3) List All Websites"
+    echo "  4) Start All Services"
+    echo "  5) Stop All Services"
+    echo "  6) Setup Online Tunnel"
+    echo "  7) View Status & Active Public URLs"
+    echo "  8) Database Management"
+    echo "  9) Fix Permissions & Errors"
+    echo "  10) Change Port"
+    echo "  11) Update TermHost"
+    
+    if is_root; then
+        echo -e "  ${PURPLE}12) Termux:Boot Setup${NC}"
+        echo -e "  ${PURPLE}13) Swap Management (Low RAM)${NC}"
+    fi
+    
+    echo "  0) Exit"
+    echo ""
 }
 
 update_termhost() {
@@ -174,7 +148,6 @@ change_port() {
         return
     fi
 
-    # Backup current Nginx config
     backup_config "$PREFIX/etc/nginx/nginx.conf"
 
     jq ".port = $new_port" "$CONFIG" > tmp.json && mv tmp.json "$CONFIG" 2>/dev/null || echo "{ \"port\": $new_port }" > "$CONFIG"
@@ -293,14 +266,12 @@ list_websites() {
 start_services() {
     echo -e "${YELLOW}Starting services...${NC}"
     
-    # Stop first
     pkill nginx 2>/dev/null || true
     pkill php-fpm 2>/dev/null || true
     pkill mysqld 2>/dev/null || true
 
     sleep 1
 
-    # Start PHP-FPM
     if ! php-fpm >/dev/null 2>&1; then
         handle_error "Failed to start PHP-FPM. Check config or port 9000."
         return 1
@@ -308,13 +279,11 @@ start_services() {
 
     sleep 1
 
-    # Start Nginx
     if ! nginx >/dev/null 2>&1; then
         handle_error "Failed to start Nginx. Check port $(get_port) or config."
         return 1
     fi
 
-    # Start MariaDB if enabled
     if [ "$(jq -r '.use_mariadb' $CONFIG 2>/dev/null)" = "true" ]; then
         mysqld_safe --datadir=$PREFIX/var/lib/mysql >/dev/null 2>&1 &
     fi
@@ -357,7 +326,32 @@ fix_permissions() {
 
 main() {
     while true; do
-        show_dashboard
+        clear
+        print_header
+        show_status
+        show_active_domains
+        main_menu
+
+        read -p "Select option: " choice
+
+        case $choice in
+            1) create_website ;;
+            2) create_from_storage ;;
+            3) list_websites ;;
+            4) start_services ;;
+            5) stop_services ;;
+            6) setup_tunnel ;;
+            7) show_status; show_active_domains ;;
+            8) database_menu ;;
+            9) fix_permissions ;;
+            10) change_port ;;
+            11) update_termhost ;;
+            0) echo "Goodbye!"; exit 0 ;;
+            *) echo -e "${RED}Invalid option!${NC}" ;;
+        esac
+
+        echo ""
+        read -p "Press Enter to continue..."
     done
 }
 

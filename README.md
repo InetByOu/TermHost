@@ -1,14 +1,12 @@
-# TermHost v5.0
+# TermHost v5.1
 
-> Production-Ready Improvements
+> Traditional Stable Menu
 
-## Key Upgrades in v5.0
+## Key Change in v5.1
 
-- Added config backup before changing port
-- Improved error handling in service startup (especially PHP-FPM)
-- Added version tracking
-- Safer and cleaner service management
-- Better user feedback on errors
+- Downgraded from real-time dashboard to traditional menu
+- More stable and glitch-free experience
+- Simpler and more reliable menu system
 
 ## Installation
 
@@ -23,9 +21,9 @@ termhost
 
 ## Features
 
-- Real-time Dashboard
-- Easy Update
+- Traditional Stable Menu
 - Change Port (with backup)
+- Easy Update
 - SD Card Hosting
 - Termux:Boot & Auto Swap (Root)
 
