@@ -1,12 +1,11 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v2.2 - With Proper Virtual Hosts
+# TermHost v2.3 - With Auto Start Feature
 
 CONFIG="$HOME/termhost/config/config.json"
 SITES_DIR="$HOME/termhost/sites"
 LOG_DIR="$HOME/termhost/logs"
 VHOST_DIR="$HOME/termhost/vhosts"
-NGINX_CONF="$PREFIX/etc/nginx/nginx.conf"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -18,7 +17,7 @@ NC='\033[0m'
 print_header() {
     clear
     echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║         TermHost v2.2 - Virtual Host Support           ║${NC}"
+    echo -e "${BLUE}║        TermHost v2.3 - Auto Start Supported          ║${NC}"
     echo -e "${BLUE}╚════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -27,7 +26,7 @@ show_status() {
     echo -e "${CYAN}=== Service Status ===${NC}"
     
     if pgrep -x nginx >/dev/null; then
-        echo -e "Nginx      : ${GREEN}● Running${NC} (Virtual Hosts Enabled)"
+        echo -e "Nginx      : ${GREEN}● Running${NC}"
     else
         echo -e "Nginx      : ${RED}● Stopped${NC}"
     fi
@@ -78,19 +77,52 @@ main_menu() {
     echo "  6) View Status & Active Public URLs"
     echo "  7) Database Management"
     echo "  8) Troubleshooting & Solutions"
-    echo "  9) Settings"
+    echo "  9) Settings / Auto Start"
     echo "  0) Exit"
     echo ""
 }
 
-# Create Nginx Virtual Host config
+create_website() {
+    echo -e "${YELLOW}Create New Website with Virtual Host${NC}"
+    read -p "Website name: " name
+
+    if [ -z "$name" ]; then
+        echo -e "${RED}Name cannot be empty!${NC}"
+        return
+    fi
+
+    site_path="$SITES_DIR/$name"
+    if [ -d "$site_path" ]; then
+        echo -e "${RED}Website already exists!${NC}"
+        return
+    fi
+
+    mkdir -p "$site_path"
+
+    cat > "$site_path/index.php" << EOF
+<?php
+    echo "<h1>Welcome to $name</h1>";
+    echo "<p>TermHost Virtual Host is working!</p>";
+?>
+EOF
+
+    # Create virtual host
+    create_vhost "$name"
+    add_to_hosts "$name"
+
+    if pgrep nginx >/dev/null; then
+        nginx -s reload 2>/dev/null
+    fi
+
+    echo -e "${GREEN}Website '$name' created successfully!${NC}"
+    echo -e "Access: ${CYAN}http://$name.localhost:8080${NC}"
+}
+
 create_vhost() {
     local name=$1
-    local vhost_file="$VHOST_DIR/$name.conf"
-
     mkdir -p "$VHOST_DIR"
 
-    cat > "$vhost_file" << EOF
+    cat > "$VHOST_DIR/$name.conf" << EOF
 server {
     listen 8080;
     server_name $name.localhost;
@@ -110,70 +142,22 @@ server {
     }
 }
 EOF
-
-    echo -e "${GREEN}Virtual host created for $name.localhost${NC}"
 }
 
-# Add domain to Termux hosts file
 add_to_hosts() {
     local name=$1
     local hosts_file="$PREFIX/etc/hosts"
 
     if ! grep -q "$name.localhost" "$hosts_file" 2>/dev/null; then
         echo "127.0.0.1 $name.localhost" >> "$hosts_file"
-        echo -e "${GREEN}Added $name.localhost to hosts file${NC}"
     fi
-}
-
-create_website() {
-    echo -e "${YELLOW}Create New Website with Virtual Host${NC}"
-    read -p "Website name (example: mysite): " name
-
-    if [ -z "$name" ]; then
-        echo -e "${RED}Name cannot be empty!${NC}"
-        return
-    fi
-
-    site_path="$SITES_DIR/$name"
-    if [ -d "$site_path" ]; then
-        echo -e "${RED}Website already exists!${NC}"
-        return
-    fi
-
-    mkdir -p "$site_path"
-
-    # Create sample index.php
-    cat > "$site_path/index.php" << EOF
-<?php
-    echo "<h1>Welcome to $name</h1>";
-    echo "<p>TermHost Virtual Host is working!</p>";
-?>
-EOF
-
-    # Create virtual host config
-    create_vhost "$name"
-
-    # Add to hosts file
-    add_to_hosts "$name"
-
-    # Reload nginx config
-    if pgrep nginx >/dev/null; then
-        nginx -s reload 2>/dev/null || echo -e "${YELLOW}Please restart Nginx to apply changes.${NC}"
-    fi
-
-    echo -e "${GREEN}Website created successfully!${NC}"
-    echo -e "Access it at: ${CYAN}http://$name.localhost:8080${NC}"
 }
 
 list_websites() {
-    echo -e "${YELLOW}Your Websites (Virtual Hosts):${NC}"
-    if [ -d "$SITES_DIR" ]; then
-        ls -1 "$SITES_DIR" | while read site; do
-            echo -e "  ${GREEN}→${NC} $site   →  ${CYAN}http://$site.localhost:8080${NC}"
-        done
-    else
-        echo "No websites found."
-    fi
+    echo -e "${YELLOW}Your Websites:${NC}"
+    ls -1 "$SITES_DIR" 2>/dev/null | while read site; do
+        echo -e "  ${GREEN}→${NC} $site   →  ${CYAN}http://$site.localhost:8080${NC}"
+    done
     echo ""
 }
 
@@ -191,58 +175,51 @@ start_services() {
         mysqld_safe --datadir=$PREFIX/var/lib/mysql > /dev/null 2>&1 &
     fi
 
-    echo -e "${GREEN}All services started successfully!${NC}"
+    echo -e "${GREEN}Services started!${NC}"
 }
 
 stop_services() {
     pkill nginx 2>/dev/null || true
     pkill php-fpm 2>/dev/null || true
     pkill mysqld 2>/dev/null || true
-    echo -e "${RED}All services stopped.${NC}"
+    echo -e "${RED}Services stopped.${NC}"
 }
 
 setup_tunnel() {
-    echo -e "${YELLOW}Setup Online Public Access${NC}"
-    echo ""
-    echo "1) Ngrok (with your token) - Recommended"
-    echo "2) Ngrok (free without token)"
-    echo "3) Cloudflare Tunnel (quick free)"
+    echo -e "${YELLOW}Setup Online Tunnel${NC}"
+    echo "1) Ngrok (with token)"
+    echo "2) Ngrok (free)"
+    echo "3) Cloudflare Tunnel (quick)"
     echo "4) Cloudflare Tunnel (with token)"
     echo "5) localhost.run"
     echo "6) Back"
-    echo ""
-    read -p "Choose option: " opt
+    read -p "Choose: " opt
 
     case $opt in
         1)
-            read -p "Ngrok Authtoken: " token
+            read -p "Ngrok token: " token
             ngrok config add-authtoken "$token" 2>/dev/null
             pkill ngrok 2>/dev/null || true
             ngrok http 8080 > $LOG_DIR/ngrok.log 2>&1 &
-            echo -e "${GREEN}Ngrok started!${NC}"
             ;;
         2)
             pkill ngrok 2>/dev/null || true
             ngrok http 8080 > $LOG_DIR/ngrok.log 2>&1 &
-            echo -e "${YELLOW}Ngrok started (free)${NC}"
             ;;
         3)
             pkg install cloudflared -y 2>/dev/null
             pkill cloudflared 2>/dev/null || true
             cloudflared tunnel --url http://localhost:8080 > $LOG_DIR/cloudflare.log 2>&1 &
-            echo -e "${GREEN}Cloudflare quick tunnel started!${NC}"
             ;;
         4)
-            read -p "Cloudflare Tunnel Token: " token
+            read -p "Cloudflare token: " token
             pkg install cloudflared -y 2>/dev/null
             pkill cloudflared 2>/dev/null || true
             cloudflared tunnel run --token "$token" > $LOG_DIR/cloudflare.log 2>&1 &
-            echo -e "${GREEN}Cloudflare Tunnel started!${NC}"
             ;;
         5)
             pkill ssh 2>/dev/null || true
             ssh -o StrictHostKeyChecking=no -R 80:localhost:8080 nokey@localhost.run > $LOG_DIR/localhostrun.log 2>&1 &
-            echo -e "${GREEN}localhost.run started!${NC}"
             ;;
         *)
             return
@@ -253,18 +230,17 @@ setup_tunnel() {
 database_menu() {
     echo -e "${YELLOW}Database Management${NC}"
     echo "1) Create New Database"
-    echo "2) List All Databases"
+    echo "2) List Databases"
     echo "3) Back"
     read -p "Choose: " dbchoice
 
     case $dbchoice in
         1)
             read -p "Database name: " dbname
-            mysql -u root -e "CREATE DATABASE IF NOT EXISTS \"$dbname\";" 2>/dev/null || echo -e "${RED}Failed. Is MariaDB running?${NC}"
-            echo -e "${GREEN}Database created successfully.${NC}"
+            mysql -u root -e "CREATE DATABASE IF NOT EXISTS \"$dbname\";" 2>/dev/null || echo -e "${RED}Failed${NC}"
+            echo -e "${GREEN}Database created.${NC}"
             ;;
         2)
-            echo -e "${CYAN}Available Databases:${NC}"
             mysql -u root -e "SHOW DATABASES;" 2>/dev/null || echo "MariaDB not running."
             ;;
         *)
@@ -273,21 +249,68 @@ database_menu() {
     esac
 }
 
+# Auto Start Feature
+enable_autostart() {
+    local bashrc="$HOME/.bashrc"
+    local marker="# TERMHOST_AUTO_START"
+
+    if grep -q "$marker" "$bashrc" 2>/dev/null; then
+        echo -e "${YELLOW}Auto Start is already enabled.${NC}"
+        return
+    fi
+
+    cat >> "$bashrc" << 'EOF'
+
+# TERMHOST_AUTO_START
+if [ -f ~/termhost/termhost.sh ]; then
+    # Auto start TermHost services (only if not running)
+    if ! pgrep -x nginx >/dev/null; then
+        php-fpm >/dev/null 2>&1
+        nginx >/dev/null 2>&1
+        if [ -f ~/termhost/config/config.json ] && [ "$(jq -r '.use_mariadb' ~/termhost/config/config.json 2>/dev/null)" = "true" ]; then
+            mysqld_safe --datadir=$PREFIX/var/lib/mysql >/dev/null 2>&1 &
+        fi
+        echo "[TermHost] Services started automatically."
+    fi
+fi
+EOF
+
+    echo -e "${GREEN}Auto Start enabled!${NC}"
+    echo "Services will start automatically when you open Termux."
+}
+
+disable_autostart() {
+    local bashrc="$HOME/.bashrc"
+    sed -i '/# TERMHOST_AUTO_START/,+15d' "$bashrc" 2>/dev/null
+    echo -e "${RED}Auto Start disabled.${NC}"
+}
+
+settings_menu() {
+    echo -e "${YELLOW}Settings${NC}"
+    echo "1) Enable Auto Start on Termux Open"
+    echo "2) Disable Auto Start"
+    echo "3) Back"
+    read -p "Choose: " setchoice
+
+    case $setchoice in
+        1) enable_autostart ;;
+        2) disable_autostart ;;
+        *) return ;;
+    esac
+}
+
 troubleshoot() {
     echo -e "${YELLOW}Common Problems & Solutions${NC}"
     echo ""
-    echo "${RED}1. Virtual host not working${NC}"
-    echo "   → Make sure you restarted Nginx after creating site"
-    echo "   → Try accessing: http://namawebsite.localhost:8080"
+    echo "1. Virtual host not working after create"
+    echo "   → Restart Nginx from menu (Stop → Start)"
     echo ""
-    echo "${RED}2. PHP not working${NC}"
-    echo "   → Restart PHP-FPM and Nginx"
+    echo "2. Auto Start not working"
+    echo "   → Make sure you enabled it from Settings"
+    echo "   → Restart Termux after enabling"
     echo ""
-    echo "${RED}3. Permission denied${NC}"
-    echo "   → chmod -R 755 ~/termhost/sites"
-    echo ""
-    echo "${RED}4. MariaDB error${NC}"
-    echo "   → Run: mariadb-install-db --user=$(whoami)"
+    echo "3. Services not starting"
+    echo "   → Run start_services from menu"
     echo ""
     read -p "Press enter to continue..."
 }
@@ -310,8 +333,8 @@ main() {
             6) show_status; show_active_domains ;;
             7) database_menu ;;
             8) troubleshoot ;;
-            9) echo "Settings coming in next update" ;;
-            0) echo "Thank you for using TermHost!"; exit 0 ;;
+            9) settings_menu ;;
+            0) echo "Goodbye!"; exit 0 ;;
             *) echo -e "${RED}Invalid option!${NC}" ;;
         esac
 

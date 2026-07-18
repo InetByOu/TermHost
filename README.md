@@ -1,29 +1,25 @@
-# TermHost v2.2
+# TermHost v2.3
 
-> Termux Web Hosting Manager with Virtual Host Support
+> Termux Web Hosting Manager with Auto Start
 
-Full-featured web hosting manager for Termux with proper Nginx virtual hosts.
+Complete web hosting solution for Termux with virtual hosts and auto-start support.
 
 ## Features
 
-- One-run installer (Nginx + PHP-FPM + MariaDB)
-- **Proper Virtual Hosts** - Access sites via `http://namawebsite.localhost:8080`
-- Create unlimited websites with virtual host
-- Interactive CLI menu
-- Multiple tunneling options (Ngrok, Cloudflare Tunnel, localhost.run)
-- Shows active public URLs
-- Basic database management
-- Built-in troubleshooting
+- Proper Virtual Hosts (`http://namawebsite.localhost:8080`)
+- Auto Start services when Termux opens
+- Ngrok, Cloudflare Tunnel, localhost.run support
+- Interactive CLI with beautiful menu
+- Database management
+- One-run installer
 
-## How Virtual Host Works
+## Auto Start
 
-When you create a website named `mysite`, you can access it at:
+You can enable services to start automatically when you open Termux:
 
-```
-http://mysite.localhost:8080
-```
+Go to menu **9) Settings / Auto Start** → Choose **Enable Auto Start**
 
-This is much cleaner than using subfolders.
+After enabling, restart Termux once.
 
 ## Quick Start
 
