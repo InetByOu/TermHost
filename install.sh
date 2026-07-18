@@ -1,71 +1,83 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Smart Installer v3.4 - Stable + Logging
+# TermHost Smart Installer v3.5 - With Animation
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
 INSTALL_DIR="$HOME/termhost"
 BIN_PATH="$PREFIX/bin/termhost"
-LOG_FILE="$HOME/termhost_install.log"
+
+# Spinner animation
+function spinner() {
+    local pid=$1
+    local delay=0.1
+    local spinstr='|/\-'
+    while kill -0 $pid 2>/dev/null; do
+        local temp=${spinstr#?}
+        printf " [%c]  " "$spinstr"
+        local spinstr=$temp${spinstr%?}
+        sleep $delay
+        printf "\b\b\b\b\b\b"
+    done
+    printf "    \b\b\b\b"
+}
 
 clear
 echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║           TermHost Smart Installer v3.4            ║${NC}"
+    echo -e "${BLUE}║           TermHost Smart Installer v3.5            ║${NC}"
     echo -e "${BLUE}╚════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
-# Start logging
-echo "=== TermHost Installation Log - $(date) ===" > "$LOG_FILE"
-
-log() {
-    echo -e "$1"
-    echo "$(date '+%H:%M:%S') - $1" >> "$LOG_FILE"
-}
-
 # ==================== FIX BROKEN DPKG ====================
-log "[Pre-check] Fixing broken dpkg..."
-dpkg --configure -a >> "$LOG_FILE" 2>&1 || true
-apt --fix-broken install -y >> "$LOG_FILE" 2>&1 || true
+echo -ne "${YELLOW}[1/7]${NC} Fixing broken packages... "
+(dpdk --configure -a && apt --fix-broken install -y) >> /dev/null 2>&1 &
+spinner $!
+echo -e "${GREEN}Done${NC}"
 
 # ==================== UPDATE & UPGRADE ====================
-log "[1/7] Updating package repositories..."
-pkg update -y >> "$LOG_FILE" 2>&1 || true
-pkg upgrade -y >> "$LOG_FILE" 2>&1 || {
-    log "${YELLOW}Warning: Upgrade had issues. Fixing dpkg...${NC}"
-    dpkg --configure -a >> "$LOG_FILE" 2>&1 || true
-}
+echo -ne "${YELLOW}[2/7]${NC} Updating package list... "
+(pkg update -y) >> /dev/null 2>&1 &
+spinner $!
+echo -e "${GREEN}Done${NC}"
 
-# ==================== INSTALL PACKAGES (SAFE LIST) ====================
-log "[2/7] Installing required packages..."
+# ==================== INSTALL PACKAGES ====================
+echo -e "${YELLOW}[3/7]${NC} Installing required packages..."
 
-# Safe and commonly available packages in Termux
-pkg install -y nginx php-fpm php php-pdo git curl wget jq unzip mariadb >> "$LOG_FILE" 2>&1 || {
-    log "${YELLOW}Some packages failed. Trying to fix and retry...${NC}"
-    dpkg --configure -a >> "$LOG_FILE" 2>&1 || true
-    apt --fix-broken install -y >> "$LOG_FILE" 2>&1 || true
-    pkg install -y nginx php-fpm php php-pdo git curl wget jq unzip mariadb >> "$LOG_FILE" 2>&1 || true
-}
-
-log "${GREEN}Package installation completed.${NC}"
+echo -ne "   - nginx, php-fpm, php, php-pdo... "
+(pkg install -y nginx php-fpm php php-pdo git curl wget jq unzip mariadb) >> /dev/null 2>&1 &
+spinner $!
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}Done${NC}"
+else
+    echo -e "${RED}Failed${NC}"
+    echo -e "${YELLOW}Trying to fix and retry...${NC}"
+    dpkg --configure -a >> /dev/null 2>&1 || true
+    apt --fix-broken install -y >> /dev/null 2>&1 || true
+    (pkg install -y nginx php-fpm php php-pdo git curl wget jq unzip mariadb) >> /dev/null 2>&1 &
+    spinner $!
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}Done${NC}"
+    else
+        echo -e "${RED}Failed${NC}"
+        echo -e "${RED}Installation stopped due to package error.${NC}"
+        exit 1
+    fi
+fi
 
 # ==================== CREATE DIRECTORIES ====================
-log "[3/7] Creating required directories..."
-mkdir -p "$INSTALL_DIR/sites/default"
-mkdir -p "$INSTALL_DIR/vhosts"
-mkdir -p "$INSTALL_DIR/logs"
-mkdir -p "$INSTALL_DIR/config"
-
-mkdir -p "$PREFIX/etc/nginx"
-mkdir -p "$PREFIX/etc/php-fpm.d"
+echo -ne "${YELLOW}[4/7]${NC} Creating directories... "
+mkdir -p "$INSTALL_DIR/sites/default" "$INSTALL_DIR/vhosts" "$INSTALL_DIR/logs" "$INSTALL_DIR/config"
+mkdir -p "$PREFIX/etc/nginx" "$PREFIX/etc/php-fpm.d"
+echo -e "${GREEN}Done${NC}"
 
 # ==================== CREATE CONFIG ====================
-log "[4/7] Creating default configuration..."
-
+echo -ne "${YELLOW}[5/7]${NC} Creating default configuration... "
 if [ ! -f "$INSTALL_DIR/config/config.json" ]; then
 cat > "$INSTALL_DIR/config/config.json" << 'EOF'
 {
@@ -74,9 +86,10 @@ cat > "$INSTALL_DIR/config/config.json" << 'EOF'
 }
 EOF
 fi
+echo -e "${GREEN}Done${NC}"
 
 # ==================== CONFIGURE SERVICES ====================
-log "[5/7] Configuring Nginx and PHP-FPM..."
+echo -ne "${YELLOW}[6/7]${NC} Configuring Nginx & PHP-FPM... "
 
 cat > $PREFIX/etc/php-fpm.d/www.conf << 'PHPEOF'
 [www]
@@ -122,16 +135,17 @@ NGINXEOF
 cat > "$INSTALL_DIR/sites/default/index.php" << 'EOF'
 <?php echo "TermHost is ready!"; ?>
 EOF
+echo -e "${GREEN}Done${NC}"
 
 # ==================== CREATE BINARY ====================
-log "[6/7] Creating 'termhost' command..."
+echo -ne "${YELLOW}[7/7]${NC} Creating 'termhost' command... "
 chmod +x "$INSTALL_DIR/termhost.sh"
 if [ -L "$BIN_PATH" ]; then rm -f "$BIN_PATH"; fi
 ln -s "$INSTALL_DIR/termhost.sh" "$BIN_PATH"
+echo -e "${GREEN}Done${NC}"
 
 # ==================== START SERVICES ====================
-log "[7/7] Starting services..."
-
+echo -e "${YELLOW}Starting services...${NC}"
 pkill nginx 2>/dev/null || true
 pkill php-fpm 2>/dev/null || true
 pkill mysqld 2>/dev/null || true
@@ -148,8 +162,7 @@ echo -e "${GREEN}╔════════════════════
     echo -e "${GREEN}║     TermHost installed successfully!               ║${NC}"
     echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "Run: ${YELLOW}termhost${NC}"
-    echo -e "Installation log saved to: ${CYAN}$LOG_FILE${NC}"
+    echo -e "You can now run: ${YELLOW}termhost${NC}"
     if [ "$(id -u)" -eq 0 ]; then
         echo -e "${PURPLE}Running as ROOT - Extra features enabled.${NC}"
     fi
