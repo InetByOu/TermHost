@@ -1,8 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v5.2 - Use upgrade.sh for updates
+# TermHost v5.3 - Fixed Menu Input (Multi-digit support)
 
-VERSION="5.2"
+VERSION="5.3"
 
 CONFIG="$HOME/termhost/config/config.json"
 SITES_DIR="$HOME/termhost/sites"
