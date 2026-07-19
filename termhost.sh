@@ -1,8 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v6.2 - Better PHP-FPM Error Diagnostics
+# TermHost v6.3 - Professional Production Version
 
-VERSION="6.2"
+VERSION="6.3"
 
 if [ "$(id -u)" -eq 0 ]; then
     if [ -f "/data/data/com.termux/files/home/termhost/termhost.sh" ]; then
@@ -550,43 +550,35 @@ delete_website() {
 start_services() {
     echo -e "${YELLOW}Starting services...${NC}"
     
-    # Stop any running processes first
     pkill nginx 2>/dev/null || true
     pkill php-fpm 2>/dev/null || true
     pkill mysqld 2>/dev/null || true
 
     sleep 2
 
-    # Check if php-fpm binary exists
     if ! command -v php-fpm >/dev/null 2>&1; then
         handle_error "php-fpm command not found. Please reinstall PHP."
         return 1
     fi
 
-    # Test PHP-FPM configuration first
     if ! php-fpm -t >/dev/null 2>&1; then
         echo -e "${RED}[Error] PHP-FPM configuration test failed.${NC}"
-        echo -e "${YELLOW}Running config test...${NC}"
         php-fpm -t
         return 1
     fi
 
-    # Start PHP-FPM
     if ! php-fpm >/dev/null 2>&1; then
-        handle_error "Failed to start PHP-FPM. Port 9000 may be in use or config is invalid."
-        echo -e "${YELLOW}Tip: Try running 'pkill php-fpm' then start services again.${NC}"
+        handle_error "Failed to start PHP-FPM. Try: pkill php-fpm then restart services."
         return 1
     fi
 
     sleep 1
 
-    # Start Nginx
     if ! nginx >/dev/null 2>&1; then
-        handle_error "Failed to start Nginx. Check port $(get_port) or nginx config."
+        handle_error "Failed to start Nginx. Check port $(get_port)."
         return 1
     fi
 
-    # Start MariaDB if enabled
     if [ "$(jq -r '.use_mariadb' $CONFIG 2>/dev/null)" = "true" ]; then
         mysqld_safe --datadir=$PREFIX/var/lib/mysql >/dev/null 2>&1 &
     fi
@@ -612,41 +604,33 @@ setup_tunnel() {
     case $c in
         1)
             if ! command -v ngrok >/dev/null 2>&1; then
-                echo -e "${YELLOW}ngrok not found. Installing...${NC}"
-                pkg install ngrok -y || {
-                    echo -e "${RED}Failed to install ngrok.${NC}"
-                    return
-                }
+                echo -e "${YELLOW}Installing ngrok...${NC}"
+                pkg install ngrok -y || { handle_error "Failed to install ngrok"; return; }
             fi
 
-            read -p "Ngrok Token (or press enter to skip): " token
-            if [ -n "$token" ]; then
-                ngrok config add-authtoken "$token" 2>/dev/null || true
-            fi
+            read -p "Ngrok Token (optional): " token
+            [ -n "$token" ] && ngrok config add-authtoken "$token" 2>/dev/null || true
 
             pkill -f "ngrok http" 2>/dev/null || true
             ngrok http $(get_port) > "$LOG_DIR/ngrok.log" 2>&1 &
-            echo -e "${GREEN}Ngrok tunnel started.${NC}"
+            echo -e "${GREEN}Ngrok started.${NC}"
             ;;
 
         2)
             if ! command -v cloudflared >/dev/null 2>&1; then
-                echo -e "${YELLOW}cloudflared not found. Installing...${NC}"
-                pkg install cloudflared -y || {
-                    echo -e "${RED}Failed to install cloudflared.${NC}"
-                    return
-                }
+                echo -e "${YELLOW}Installing cloudflared...${NC}"
+                pkg install cloudflared -y || { handle_error "Failed to install cloudflared"; return; }
             fi
 
             pkill -f cloudflared 2>/dev/null || true
             cloudflared tunnel --url http://localhost:$(get_port) > "$LOG_DIR/cloudflare.log" 2>&1 &
-            echo -e "${GREEN}Cloudflare tunnel started.${NC}"
+            echo -e "${GREEN}Cloudflare started.${NC}"
             ;;
 
         3)
             pkill -f "ssh -R" 2>/dev/null || true
             ssh -o StrictHostKeyChecking=no -R 80:localhost:$(get_port) nokey@localhost.run > "$LOG_DIR/localhostrun.log" 2>&1 &
-            echo -e "${GREEN}localhost.run tunnel started.${NC}"
+            echo -e "${GREEN}localhost.run started.${NC}"
             ;;
     esac
 }

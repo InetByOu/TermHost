@@ -1,24 +1,14 @@
-# TermHost v6.2
+# TermHost v6.3 - Professional Production Ready
 
-> Improved PHP-FPM Startup Diagnostics
+> Total Code Inspection & Stability Improvements
 
-## Fix in v6.2
+## Major Improvements in v6.3
 
-- Added configuration test before starting PHP-FPM (`php-fpm -t`)
-- Better error messages when PHP-FPM fails to start
-- Added helpful tips (e.g. "Try running 'pkill php-fpm'")
-- More robust service startup process
-
-## Common Fix for PHP-FPM Error
-
-If you still get "Failed to start PHP-FPM":
-
-```bash
-pkill php-fpm
-termhost
-```
-
-Then choose **5) Start All Services** again.
+- More robust package installation in `install.sh`
+- Better error handling and diagnostics
+- Improved service startup (especially PHP-FPM)
+- Cleaner and more maintainable code structure
+- Stronger recommendations for users when installation fails
 
 ## Installation
 

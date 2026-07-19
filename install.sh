@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Installer v6.1 - Full Production Environment
+# TermHost Installer v6.3 - Professional Production Setup
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,49 +13,57 @@ INSTALL_DIR="$HOME/termhost"
 BIN_PATH="$PREFIX/bin/termhost"
 
 clear
-echo -e "${BLUE}TermHost Installer v6.1 - Production Ready${NC}"
+echo -e "${BLUE}TermHost Installer v6.3${NC}"
     echo "===================================="
+    echo -e "${CYAN}Professional Production Environment Setup${NC}"
     echo ""
 
-# ==================== FIX BROKEN DPKG ====================
-echo -e "${YELLOW}[1/8]${NC} Fixing broken packages..."
+# Function to install packages with better error handling
+echo_step() {
+    echo -e "${YELLOW}[$1]${NC} $2..."
+}
+
+echo_ok() { echo -e "${GREEN}Done${NC}"; }
+echo_fail() { echo -e "${RED}Failed${NC}"; }
+
+# ==================== 1. FIX DPKG ====================
+echo_step "1/9" "Fixing broken packages"
 dpkg --configure -a >> /dev/null 2>&1 || true
 apt --fix-broken install -y >> /dev/null 2>&1 || true
-echo -e "${GREEN}Done${NC}"
+echo_ok
 
-# ==================== UPDATE & UPGRADE ====================
-echo -e "${YELLOW}[2/8]${NC} Updating package repositories..."
-pkg update -y >> /dev/null 2>&1 || true
-echo -e "${GREEN}Done${NC}"
+# ==================== 2. UPDATE REPO ====================
+echo_step "2/9" "Updating package repositories"
+if ! pkg update -y >> /dev/null 2>&1; then
+    echo -e "${YELLOW}Warning: pkg update failed. You may need to run 'termux-change-repo'${NC}"
+fi
+echo_ok
 
-# ==================== INSTALL CORE + SUPPORTING PACKAGES ====================
-echo -e "${YELLOW}[3/8]${NC} Installing core + supporting packages..."
+# ==================== 3. INSTALL CORE PACKAGES ====================
+echo_step "3/9" "Installing core packages"
 
-CORE="nginx php-fpm php git curl wget jq unzip zip openssh"
+PACKAGES="nginx php-fpm php git curl wget jq unzip zip openssh mariadb"
 
-if pkg install -y $CORE >> /dev/null 2>&1; then
-    echo -e "  ${GREEN}✓${NC} Core packages installed"
+if pkg install -y $PACKAGES >> /dev/null 2>&1; then
+    echo_ok
 else
-    echo -e "  ${RED}✗${NC} Some core packages failed"
+    echo_fail
+    echo -e "${YELLOW}Some packages failed to install.${NC}"
+    echo -e "${YELLOW}Recommended: Run 'termux-change-repo' then try installing again.${NC}"
+    echo -e "${YELLOW}Or run: pkg install -y $PACKAGES${NC}"
 fi
 
-echo -ne "  ${YELLOW}Installing MariaDB... ${NC}"
-if pkg install -y mariadb >> /dev/null 2>&1; then
-    echo -e "${GREEN}OK${NC}"
-else
-    echo -e "${YELLOW}Skipped${NC}"
-fi
+# ==================== 4. DOWNLOAD CORE FILES ====================
+echo_step "4/9" "Downloading TermHost core files"
 
-# ==================== DOWNLOAD CORE FILES ====================
-echo -e "${YELLOW}[4/8]${NC} Downloading TermHost core files..."
-
-mkdir -p "$INSTALL_DIR/config"
+mkdir -p "$INSTALL_DIR/config" "$INSTALL_DIR/logs" "$INSTALL_DIR/sites/default" "$INSTALL_DIR/vhosts"
 
 if curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/termhost.sh -o "$INSTALL_DIR/termhost.sh"; then
     chmod +x "$INSTALL_DIR/termhost.sh"
-    echo -e "  ${GREEN}✓${NC} termhost.sh downloaded"
+    echo_ok
 else
-    echo -e "  ${RED}✗${NC} Failed to download termhost.sh"
+    echo_fail
+    echo -e "${RED}Critical: Failed to download termhost.sh${NC}"
     exit 1
 fi
 
@@ -68,27 +76,10 @@ cat > "$INSTALL_DIR/config/config.json" << 'EOF'
   "tinyfm_password_hash": ""
 }
 EOF
-    echo -e "  ${GREEN}✓${NC} Default config created"
 fi
 
-echo -e "${GREEN}Done${NC}"
-
-# ==================== CREATE ALL DIRECTORIES ====================
-echo -e "${YELLOW}[5/8]${NC} Creating complete directory structure..."
-
-mkdir -p "$INSTALL_DIR/sites/default" \
-           "$INSTALL_DIR/vhosts" \
-           "$INSTALL_DIR/logs" \
-           "$INSTALL_DIR/config"
-
-mkdir -p "$PREFIX/etc/nginx" \
-           "$PREFIX/etc/php-fpm.d"
-
-echo -e "  ${GREEN}✓${NC} All directories created"
-echo -e "${GREEN}Done${NC}"
-
-# ==================== CONFIGURE SERVICES ====================
-echo -e "${YELLOW}[6/8]${NC} Configuring Nginx and PHP-FPM..."
+# ==================== 5. CREATE SYSTEM CONFIG ====================
+echo_step "5/9" "Creating system configuration"
 
 cat > $PREFIX/etc/php-fpm.d/www.conf << 'PHPEOF'
 [www]
@@ -134,30 +125,33 @@ NGINXEOF
 cat > "$INSTALL_DIR/sites/default/index.php" << 'EOF'
 <?php echo "TermHost is ready!"; ?>
 EOF
-echo -e "${GREEN}Done${NC}"
+echo_ok
 
-# ==================== CREATE BINARY ====================
-echo -e "${YELLOW}[7/8]${NC} Creating termhost command..."
+# ==================== 6. CREATE BINARY ====================
+echo_step "6/9" "Creating termhost command"
 chmod +x "$INSTALL_DIR/termhost.sh"
 if [ -L "$BIN_PATH" ]; then rm -f "$BIN_PATH"; fi
 ln -s "$INSTALL_DIR/termhost.sh" "$BIN_PATH"
-echo -e "${GREEN}Done${NC}"
+echo_ok
 
-# ==================== FINAL INITIALIZATION ====================
-echo -e "${YELLOW}[8/8]${NC} Final initialization..."
+# ==================== 7. FINAL INITIALIZATION ====================
+echo_step "7/9" "Final environment initialization"
 
-bash "$INSTALL_DIR/termhost.sh" --init-only 2>/dev/null || true
-
-echo -e "${GREEN}Done${NC}"
+# Run termhost to initialize directories and config
+if [ -f "$INSTALL_DIR/termhost.sh" ]; then
+    bash "$INSTALL_DIR/termhost.sh" --init-only 2>/dev/null || true
+fi
+echo_ok
 
 echo ""
-echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║     TermHost v6.1 - Production Ready Installed       ║${NC}"
-    echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
+echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║          TermHost v6.3 - Production Ready Installed        ║${NC}"
+    echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "You can now run: ${YELLOW}termhost${NC}"
+    echo -e "Run: ${YELLOW}termhost${NC}"
     echo ""
-    echo -e "${CYAN}Everything is ready. Just run 'termhost' and start creating websites.${NC}"
+    echo -e "${CYAN}All core components are ready.${NC}"
     if [ "$(id -u)" -eq 0 ]; then
-        echo -e "${PURPLE}Running as ROOT - Some features enabled.${NC}"
+        echo -e "${PURPLE}Note: You are running as ROOT.${NC}"
     fi
+    echo ""
