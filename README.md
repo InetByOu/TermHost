@@ -1,13 +1,14 @@
-# TermHost v5.3
+# TermHost v5.4
 
-> Fixed Multi-digit Menu Input
+> Root User Path Fix & Stability
 
-## Critical Fix in v5.3
+## Critical Fixes in v5.4
 
-- Fixed menu input handling for options **10, 11, 12, 13**
-- Removed partial input bug caused by `read -n 1`
-- Menu now correctly accepts two-digit numbers
-- More stable and reliable input system
+- Fixed `backup_config: command not found` error
+- Fixed wrong config path when running as root (`.suroot`)
+- Added robust path detection for normal user vs root/su
+- `change_port` now works correctly for both normal users and root
+- Added validation: non-root users cannot use ports < 1024
 
 ## Installation
 
@@ -20,11 +21,19 @@ Run:
 termhost
 ```
 
+## Recommendation
+
+For best experience, run TermHost as your **normal Termux user** (not as root).
+Only use root when you specifically need features like:
+- Termux:Boot
+- Low port numbers (e.g. port 80)
+- Swap management
+
 ## Features
 
-- Stable Traditional Menu (fixed input)
-- Smart Upgrade (core only + backup)
-- Change Port (with automatic backup)
+- Stable Traditional Menu
+- Smart Upgrade
+- Change Port (works for root & normal users)
 - SD Card Hosting
 - Termux:Boot & Auto Swap (Root)
 

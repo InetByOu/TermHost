@@ -1,15 +1,29 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v5.3 - Fixed Menu Input (Multi-digit support)
+# TermHost v5.4 - Fix Root Path & backup_config Error
 
-VERSION="5.3"
+VERSION="5.4"
 
-CONFIG="$HOME/termhost/config/config.json"
-SITES_DIR="$HOME/termhost/sites"
-LOG_DIR="$HOME/termhost/logs"
-VHOST_DIR="$HOME/termhost/vhosts"
-STORAGE_DIR="$HOME/storage"
-INSTALL_DIR="$HOME/termhost"
+# Robust path detection (handles normal user and root/su)
+if [ "$(id -u)" -eq 0 ]; then
+    # Running as root - try to find the real TermHost installation
+    if [ -f "/data/data/com.termux/files/home/termhost/termhost.sh" ]; then
+        REAL_HOME="/data/data/com.termux/files/home"
+    elif [ -f "/data/data/com.termux/files/home/.suroot/termhost/termhost.sh" ]; then
+        REAL_HOME="/data/data/com.termux/files/home/.suroot"
+    else
+        REAL_HOME="$HOME"
+    fi
+else
+    REAL_HOME="$HOME"
+fi
+
+CONFIG="$REAL_HOME/termhost/config/config.json"
+SITES_DIR="$REAL_HOME/termhost/sites"
+LOG_DIR="$REAL_HOME/termhost/logs"
+VHOST_DIR="$REAL_HOME/termhost/vhosts"
+STORAGE_DIR="$REAL_HOME/storage"
+INSTALL_DIR="$REAL_HOME/termhost"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -26,6 +40,13 @@ get_port() { jq -r '.port // 8080' "$CONFIG" 2>/dev/null || echo 8080; }
 handle_error() {
     echo -e "${RED}[Error]${NC} $1"
     sleep 1.5
+}
+
+backup_config() {
+    local file="$1"
+    if [ -f "$file" ]; then
+        cp "$file" "${file}.bak.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
+    fi
 }
 
 print_header() {
@@ -146,10 +167,28 @@ change_port() {
         return
     fi
 
+    # Only allow low ports for root
+    if [ "$new_port" -lt 1024 ] && ! is_root; then
+        handle_error "Non-root users cannot use ports below 1024 (try 8080 or higher)"
+        return
+    fi
+
+    # Backup current Nginx config
     backup_config "$PREFIX/etc/nginx/nginx.conf"
 
-    jq ".port = $new_port" "$CONFIG" > tmp.json && mv tmp.json "$CONFIG" 2>/dev/null || echo "{ \"port\": $new_port }" > "$CONFIG"
-    sed -i "s/listen .*;/listen       $new_port;/" $PREFIX/etc/nginx/nginx.conf
+    # Update config.json safely
+    if [ -f "$CONFIG" ]; then
+        jq ".port = $new_port" "$CONFIG" > "${CONFIG}.tmp" 2>/dev/null && mv "${CONFIG}.tmp" "$CONFIG"
+    else
+        # Create config if it doesn't exist
+        mkdir -p "$(dirname "$CONFIG")"
+        echo "{ \"port\": $new_port, \"use_mariadb\": true }" > "$CONFIG"
+    fi
+
+    # Update Nginx config
+    if [ -f "$PREFIX/etc/nginx/nginx.conf" ]; then
+        sed -i "s/listen .*;/listen       $new_port;/" $PREFIX/etc/nginx/nginx.conf
+    fi
 
     if pgrep nginx >/dev/null; then
         nginx -s reload 2>/dev/null || true
