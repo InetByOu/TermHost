@@ -1,12 +1,12 @@
-# TermHost v7.4
+# TermHost v7.5
 
-> GitHub Releases Binary Hosting + Architecture Detection
+> Binaries Downloaded Only During Installation
 
-## Binary Hosting
+## Key Change in v7.5
 
-Static binaries (`ngrok` dan `cloudflared`) disimpan di **GitHub Releases** dengan tag `binaries-v1.0`.
+Static binaries (`ngrok` and `cloudflared`) are now downloaded **only once** during installation from GitHub Releases.
 
-Binary otomatis diunduh saat pertama kali digunakan dan disimpan di `~/termhost/bin/`.
+After installation, the binaries are stored in `~/termhost/bin/` and reused.
 
 ## Installation
 ```bash

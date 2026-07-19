@@ -1,8 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v7.4 - GitHub Releases Binary Hosting
+# TermHost v7.5 - Binaries Downloaded at Install Time
 
-VERSION="7.4"
+VERSION="7.5"
 
 if [ "$(id -u)" -eq 0 ]; then
     REAL_HOME="/data/data/com.termux/files/home"
@@ -19,9 +19,6 @@ BIN_DIR="$REAL_HOME/termhost/bin"
 STORAGE_DIR="$REAL_HOME/storage"
 INSTALL_DIR="$REAL_HOME/termhost"
 
-GITHUB_REPO="InetByOu/TermHost"
-GITHUB_RELEASE_TAG="binaries-v1.0"   # Tag release tempat binary disimpan
-
 init() {
     mkdir -p "$SITES_DIR" "$VHOST_DIR" "$LOG_DIR" "$BIN_DIR" "$INSTALL_DIR/config"
 }
@@ -31,41 +28,6 @@ get_port() { jq -r '.port // 8080' "$CONFIG" 2>/dev/null || echo 8080; }
 is_root() { [ "$(id -u)" -eq 0 ]; }
 
 handle_error() { echo -e "${RED}[Error]${NC} $1"; sleep 1.5; }
-
-get_system_arch() {
-    local arch=$(uname -m)
-    case $arch in
-        aarch64|arm64) echo "arm64" ;;
-        armv7l|armhf)  echo "arm" ;;
-        x86_64|amd64)  echo "amd64" ;;
-        i686|i386)     echo "386" ;;
-        *)             echo "arm64" ;;
-    esac
-}
-
-# Download binary from GitHub Releases (only if not exists)
-download_binary_from_release() {
-    local name="$1"
-    local arch=$(get_system_arch)
-    local filename="${name}-${arch}"
-    local dest="$BIN_DIR/$name"
-
-    if [ -f "$dest" ]; then
-        return 0
-    fi
-
-    echo -e "${YELLOW}Downloading $name for $arch from GitHub Releases...${NC}"
-
-    local url="https://github.com/${GITHUB_REPO}/releases/download/${GITHUB_RELEASE_TAG}/${filename}"
-
-    if curl -fsSL "$url" -o "$dest"; then
-        chmod +x "$dest"
-        echo -e "${GREEN}$name downloaded successfully.${NC}"
-    else
-        handle_error "Failed to download $name from GitHub Releases"
-        return 1
-    fi
-}
 
 print_header() {
     if is_root; then
@@ -177,7 +139,10 @@ setup_tunnel() {
 
     case $c in
         1)
-            download_binary_from_release "ngrok"
+            if [ ! -f "$BIN_DIR/ngrok" ]; then
+                handle_error "ngrok binary not found. Please reinstall TermHost."
+                return
+            fi
             read -p "Ngrok Token (optional): " token
             [ -n "$token" ] && $BIN_DIR/ngrok config add-authtoken "$token" 2>/dev/null || true
             pkill -f "ngrok http" 2>/dev/null || true
@@ -186,7 +151,10 @@ setup_tunnel() {
             ;;
 
         2)
-            download_binary_from_release "cloudflared"
+            if [ ! -f "$BIN_DIR/cloudflared" ]; then
+                handle_error "cloudflared binary not found. Please reinstall TermHost."
+                return
+            fi
             pkill -f cloudflared 2>/dev/null || true
             $BIN_DIR/cloudflared tunnel --url http://localhost:$(get_port) > $LOG_DIR/cloudflare.log 2>&1 &
             echo -e "${GREEN}Cloudflare started.${NC}"

@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Installer v7.4
+# TermHost Installer v7.5 - Download Binaries at Install Time
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -10,41 +10,78 @@ NC='\033[0m'
 
 INSTALL_DIR="$HOME/termhost"
 BIN_PATH="$PREFIX/bin/termhost"
+GITHUB_REPO="InetByOu/TermHost"
+GITHUB_RELEASE_TAG="binaries-v1.0"
 
 clear
-echo -e "${BLUE}TermHost Installer v7.4${NC}"
+echo -e "${BLUE}TermHost Installer v7.5${NC}"
     echo "===================================="
-    echo -e "${CYAN}GitHub Releases Binary Hosting${NC}"
+    echo -e "${CYAN}Binaries downloaded during installation${NC}"
     echo ""
 
 echo_step() { echo -e "${YELLOW}[$1]${NC} $2..."; }
 echo_ok() { echo -e "${GREEN}Done${NC}"; }
 
+get_system_arch() {
+    local arch=$(uname -m)
+    case $arch in
+        aarch64|arm64) echo "arm64" ;;
+        armv7l|armhf)  echo "arm" ;;
+        x86_64|amd64)  echo "amd64" ;;
+        *)             echo "arm64" ;;
+    esac
+}
+
+# Download binary from GitHub Releases
+download_binary() {
+    local name="$1"
+    local arch=$(get_system_arch)
+    local filename="${name}-${arch}"
+    local dest="$INSTALL_DIR/bin/$name"
+
+    echo -e "${YELLOW}Downloading $name for $arch...${NC}"
+
+    local url="https://github.com/${GITHUB_REPO}/releases/download/${GITHUB_RELEASE_TAG}/${filename}"
+
+    if curl -fsSL "$url" -o "$dest"; then
+        chmod +x "$dest"
+        echo -e "  ${GREEN}✓ $name downloaded${NC}"
+    else
+        echo -e "  ${RED}✗ Failed to download $name${NC}"
+    fi
+}
+
 # 1. Fix system
-echo_step "1/6" "Fixing package system"
+echo_step "1/7" "Fixing package system"
 dpkg --configure -a >> /dev/null 2>&1 || true
 apt --fix-broken install -y >> /dev/null 2>&1 || true
 echo_ok
 
 # 2. Update
-echo_step "2/6" "Updating repositories"
+echo_step "2/7" "Updating repositories"
 pkg update -y >> /dev/null 2>&1 || true
 echo_ok
 
 # 3. Install packages
-echo_step "3/6" "Installing packages"
+echo_step "3/7" "Installing packages"
 pkg install -y nginx php-fpm php git curl wget jq unzip zip openssh mariadb >> /dev/null 2>&1 || true
 echo_ok
 
-# 4. Download TermHost
-echo_step "4/6" "Downloading TermHost"
+# 4. Download TermHost core
+echo_step "4/7" "Downloading TermHost core"
 mkdir -p "$INSTALL_DIR/config" "$INSTALL_DIR/logs" "$INSTALL_DIR/sites/default" "$INSTALL_DIR/vhosts" "$INSTALL_DIR/bin"
 
 curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/termhost.sh -o "$INSTALL_DIR/termhost.sh"
 chmod +x "$INSTALL_DIR/termhost.sh"
 echo_ok
 
-# 5. Default config
+# 5. Download static binaries
+echo_step "5/7" "Downloading static binaries (ngrok & cloudflared)"
+download_binary "ngrok"
+download_binary "cloudflared"
+echo_ok
+
+# 6. Default config
 if [ ! -f "$INSTALL_DIR/config/config.json" ]; then
 cat > "$INSTALL_DIR/config/config.json" << 'EOF'
 {
@@ -56,8 +93,8 @@ cat > "$INSTALL_DIR/config/config.json" << 'EOF'
 EOF
 fi
 
-# 6. Configure & create command
-echo_step "5/6" "Configuring services"
+# 7. Configure services & create command
+echo_step "6/7" "Configuring services"
 
 cat > $PREFIX/etc/php-fpm.d/www.conf << 'PHPEOF'
 [www]
@@ -96,13 +133,14 @@ cat > "$INSTALL_DIR/sites/default/index.php" << 'EOF'
 EOF
 echo_ok
 
-# Create binary
-echo_step "6/6" "Creating command"
+# Create command
+echo_step "7/7" "Creating termhost command"
 chmod +x "$INSTALL_DIR/termhost.sh"
 if [ -L "$BIN_PATH" ]; then rm -f "$BIN_PATH"; fi
 ln -s "$INSTALL_DIR/termhost.sh" "$BIN_PATH"
 echo_ok
 
 echo ""
-echo -e "${GREEN}TermHost v7.4 installed successfully!${NC}"
+echo -e "${GREEN}TermHost v7.5 installed successfully!${NC}"
     echo -e "Run: ${YELLOW}termhost${NC}"
+    echo -e "${CYAN}Binaries (ngrok & cloudflared) have been downloaded.${NC}"
