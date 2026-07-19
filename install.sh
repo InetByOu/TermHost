@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost Installer v7.1
+# TermHost Installer v7.2
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -12,9 +12,9 @@ INSTALL_DIR="$HOME/termhost"
 BIN_PATH="$PREFIX/bin/termhost"
 
 clear
-echo -e "${BLUE}TermHost Installer v7.1${NC}"
+echo -e "${BLUE}TermHost Installer v7.2${NC}"
     echo "===================================="
-    echo -e "${CYAN}With Auto Binary Downloader${NC}"
+    echo -e "${CYAN}Improved Auto Binary Downloader${NC}"
     echo ""
 
 echo_step() { echo -e "${YELLOW}[$1]${NC} $2..."; }
@@ -104,5 +104,5 @@ ln -s "$INSTALL_DIR/termhost.sh" "$BIN_PATH"
 echo_ok
 
 echo ""
-echo -e "${GREEN}TermHost v7.1 installed successfully!${NC}"
+echo -e "${GREEN}TermHost v7.2 installed successfully!${NC}"
     echo -e "Run: ${YELLOW}termhost${NC}"

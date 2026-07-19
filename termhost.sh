@@ -1,8 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v7.1 - Auto Static Binary Downloader
+# TermHost v7.2 - Improved Auto Binary Downloader
 
-VERSION="7.1"
+VERSION="7.2"
 
 if [ "$(id -u)" -eq 0 ]; then
     REAL_HOME="/data/data/com.termux/files/home"
@@ -29,21 +29,62 @@ is_root() { [ "$(id -u)" -eq 0 ]; }
 
 handle_error() { echo -e "${RED}[Error]${NC} $1"; sleep 1.5; }
 
-# Download static binary if not exists
+# Detect architecture
+get_arch() {
+    case $(uname -m) in
+        aarch64) echo "arm64" ;;
+        armv7l)  echo "arm" ;;
+        x86_64)  echo "amd64" ;;
+        *)       echo "arm64" ;;
+    esac
+}
+
+# Download and extract binary if needed
 ensure_binary() {
     local name="$1"
     local url="$2"
+    local is_archive="$3"   # true/false
     local dest="$BIN_DIR/$name"
 
-    if [ ! -f "$dest" ]; then
-        echo -e "${YELLOW}Downloading $name...${NC}"
-        if curl -fsSL "$url" -o "$dest"; then
-            chmod +x "$dest"
-            echo -e "${GREEN}$name downloaded successfully.${NC}"
+    if [ -f "$dest" ]; then
+        return 0
+    fi
+
+    echo -e "${YELLOW}Downloading $name for $(get_arch)...${NC}"
+
+    mkdir -p "$BIN_DIR"
+
+    if [ "$is_archive" = "true" ]; then
+        # Download and extract (for ngrok .tgz)
+        local tmpfile="/tmp/${name}.tgz"
+        if curl -fsSL "$url" -o "$tmpfile"; then
+            tar -xzf "$tmpfile" -C "$BIN_DIR" 2>/dev/null || true
+            rm -f "$tmpfile"
+
+            # ngrok binary is usually inside the extracted folder
+            if [ -f "$BIN_DIR/ngrok" ]; then
+                mv "$BIN_DIR/ngrok" "$dest" 2>/dev/null || true
+            fi
+            chmod +x "$dest" 2>/dev/null || true
         else
             handle_error "Failed to download $name"
             return 1
         fi
+    else
+        # Direct binary download
+        if curl -fsSL "$url" -o "$dest"; then
+            chmod +x "$dest"
+        else
+            handle_error "Failed to download $name"
+            return 1
+        fi
+    fi
+
+    if [ -f "$dest" ]; then
+        echo -e "${GREEN}$name ready.${NC}"
+    else
+        handle_error "$name installation failed"
+        return 1
     fi
 }
 
@@ -139,7 +180,7 @@ start_services() {
     sleep 1
 
     command -v php-fpm >/dev/null || { handle_error "php-fpm not found"; return 1; }
-    php-fpm -t >/dev/null 2>&1 || { handle_error "PHP-FPM config error"; php-fpm -t; return 1; }
+    php-fpm -t >/dev/null 2>&1 || { handle_error "PHP-FPM config error"; return 1; }
     php-fpm >/dev/null 2>&1 || { handle_error "Failed to start PHP-FPM"; return 1; }
     nginx >/dev/null 2>&1 || { handle_error "Failed to start Nginx"; return 1; }
 
@@ -157,7 +198,8 @@ setup_tunnel() {
 
     case $c in
         1)
-            ensure_binary "ngrok" "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-arm64.tgz" "ngrok"
+            # ngrok v3 ARM64
+            ensure_binary "ngrok" "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-arm64.tgz" "true"
             read -p "Ngrok Token (optional): " token
             [ -n "$token" ] && $BIN_DIR/ngrok config add-authtoken "$token" 2>/dev/null || true
             pkill -f "ngrok http" 2>/dev/null || true
@@ -166,7 +208,8 @@ setup_tunnel() {
             ;;
 
         2)
-            ensure_binary "cloudflared" "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64" "cloudflared"
+            # cloudflared ARM64
+            ensure_binary "cloudflared" "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64" "false"
             pkill -f cloudflared 2>/dev/null || true
             $BIN_DIR/cloudflared tunnel --url http://localhost:$(get_port) > $LOG_DIR/cloudflare.log 2>&1 &
             echo -e "${GREEN}Cloudflare started.${NC}"

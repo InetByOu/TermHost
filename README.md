@@ -1,11 +1,13 @@
-# TermHost v7.1
+# TermHost v7.2
 
-> Auto Static Binary Downloader
+> Improved Auto Static Binary Downloader
 
-## Features
-- Automatically downloads `ngrok` and `cloudflared` static binaries when needed
-- No dependency on `pkg install` for tunneling tools
-- Clean and lightweight
+## Improvements in v7.2
+
+- Automatic architecture detection (arm64 / arm / amd64)
+- Proper extraction of .tgz files (ngrok)
+- Cleaner and more reliable binary downloader
+- Better error handling
 
 ## Installation
 ```bash
