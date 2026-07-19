@@ -1,22 +1,28 @@
-# TermHost v5.5
+# TermHost v5.6
 
-> Delete Website Feature
+> TinyFM Integration + Password Management
 
-## New Feature: Delete Website
+## New Features in v5.6
 
-You can now completely remove a website with one command.
+### TinyFM as Default File Manager
 
-**Menu 4) Delete Website**
+Every new website automatically gets **TinyFM** installed at:
 
-This will purge:
-- Website directory (`sites/<name>`)
-- Virtual host configuration (`vhosts/<name>.conf`)
-- hosts entry (`127.0.0.1 <name>.localhost`)
-- Automatically reload Nginx
+```
+http://namawebsite.localhost:PORT/adminfm
+```
 
-Safety:
-- Requires typing `DELETE` to confirm
-- Shows exactly what will be removed before proceeding
+### TinyFM Password Management
+
+**Menu 12) TinyFM Password Management**
+
+- Change password for all websites at once
+- Updates all existing `adminfm/index.php` installations
+- Saves default password for future websites
+
+### File Manager Link
+
+The File Manager link is now shown in the main menu and when creating websites.
 
 ## Installation
 
@@ -31,8 +37,9 @@ termhost
 
 ## Features
 
-- Delete Website with full purge
-- Stable Traditional Menu
+- TinyFM File Manager (default on every website)
+- TinyFM Password Management
+- Delete Website (full purge)
 - Smart Upgrade
 - Change Port (with backup)
 - SD Card Hosting
