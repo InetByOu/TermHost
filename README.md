@@ -1,13 +1,16 @@
-# TermHost v7.2
+# TermHost v7.3
 
-> Improved Auto Static Binary Downloader
+> Automatic Architecture Detection for Static Binaries
 
-## Improvements in v7.2
+## Key Improvement
 
-- Automatic architecture detection (arm64 / arm / amd64)
-- Proper extraction of .tgz files (ngrok)
-- Cleaner and more reliable binary downloader
-- Better error handling
+The binary downloader now automatically detects your device architecture and downloads the correct version of `ngrok` and `cloudflared`.
+
+Supported architectures:
+- `arm64` (aarch64) - Most common
+- `arm` (armv7l)
+- `amd64` (x86_64)
+- `386` (i686)
 
 ## Installation
 ```bash
