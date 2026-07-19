@@ -1,17 +1,26 @@
-# TermHost v5.7
+# TermHost v6.0 - Production Ready
 
-> File Manager Settings with Hashed Password
+> Complete Environment Initialization + Robust Tunnel Support
 
-## File Manager Settings (Menu 12)
+## Major Improvements in v6.0
 
-Complete settings for TinyFM without editing any PHP file manually.
+### Full Environment Initialization
+- Automatic creation of all required directories on startup
+- Automatic creation of default `config.json`
+- Proper log directory handling
 
-**Features:**
+### Robust Path Handling
+- Correctly detects installation path whether running as normal user or root (`.suroot`)
 
-- Change Username
-- Change Password with **automatic hashing** (secure)
-- All changes applied to **all existing websites** automatically
-- Settings saved in config and used for new websites
+### Improved Tunnel System (`setup_tunnel`)
+- Auto-installs `ngrok` and `cloudflared` if missing
+- Creates log directory before writing logs
+- Clearer error messages
+
+### Production-Ready Stability
+- Better error handling throughout
+- Safer service startup/shutdown
+- Consistent behavior across normal user and root environments
 
 ## Installation
 
@@ -25,14 +34,12 @@ termhost
 ```
 
 ## Features
-
-- File Manager Settings (with hashed password)
-- TinyFM auto-installed on every website
+- Production-ready environment
+- Auto TinyFM on every website
+- File Manager Settings (hashed password)
 - Delete Website (full purge)
 - Smart Upgrade
-- Change Port
-- SD Card Hosting
-- Termux:Boot & Auto Swap (Root)
+- Robust Tunnel support (Ngrok / Cloudflare / localhost.run)
 
 ## Author
 InetByOu

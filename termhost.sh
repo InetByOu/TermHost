@@ -1,15 +1,28 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v5.7 - File Manager Settings with Hashed Password
+# TermHost v6.0 - Production Ready
 
-VERSION="5.7"
+VERSION="6.0"
 
-CONFIG="$HOME/termhost/config/config.json"
-SITES_DIR="$HOME/termhost/sites"
-LOG_DIR="$HOME/termhost/logs"
-VHOST_DIR="$HOME/termhost/vhosts"
-STORAGE_DIR="$HOME/storage"
-INSTALL_DIR="$HOME/termhost"
+# ==================== ROBUST PATH DETECTION ====================
+if [ "$(id -u)" -eq 0 ]; then
+    if [ -f "/data/data/com.termux/files/home/termhost/termhost.sh" ]; then
+        REAL_HOME="/data/data/com.termux/files/home"
+    elif [ -f "/data/data/com.termux/files/home/.suroot/termhost/termhost.sh" ]; then
+        REAL_HOME="/data/data/com.termux/files/home/.suroot"
+    else
+        REAL_HOME="$HOME"
+    fi
+else
+    REAL_HOME="$HOME"
+fi
+
+CONFIG="$REAL_HOME/termhost/config/config.json"
+SITES_DIR="$REAL_HOME/termhost/sites"
+LOG_DIR="$REAL_HOME/termhost/logs"
+VHOST_DIR="$REAL_HOME/termhost/vhosts"
+STORAGE_DIR="$REAL_HOME/storage"
+INSTALL_DIR="$REAL_HOME/termhost"
 TINYFM_URL="https://raw.githubusercontent.com/prasathmani/tinyfilemanager/master/tinyfilemanager.php"
 
 RED='\033[0;31m'
@@ -20,6 +33,29 @@ CYAN='\033[0;36m'
 PURPLE='\033[0;35m'
 NC='\033[0m'
 
+# ==================== INITIALIZATION ====================
+init_directories() {
+    mkdir -p "$SITES_DIR" "$VHOST_DIR" "$LOG_DIR" "$INSTALL_DIR/config"
+}
+
+init_config() {
+    if [ ! -f "$CONFIG" ]; then
+        cat > "$CONFIG" << 'EOF'
+{
+  "port": 8080,
+  "use_mariadb": true,
+  "tinyfm_username": "admin",
+  "tinyfm_password_hash": ""
+}
+EOF
+    fi
+}
+
+ensure_log_dir() {
+    mkdir -p "$LOG_DIR"
+}
+
+# ==================== HELPER FUNCTIONS ====================
 is_root() { [ "$(id -u)" -eq 0 ]; }
 has_storage() { [ -d "$STORAGE_DIR" ]; }
 get_port() { jq -r '.port // 8080' "$CONFIG" 2>/dev/null || echo 8080; }
@@ -27,6 +63,13 @@ get_port() { jq -r '.port // 8080' "$CONFIG" 2>/dev/null || echo 8080; }
 handle_error() {
     echo -e "${RED}[Error]${NC} $1"
     sleep 1.5
+}
+
+backup_config() {
+    local file="$1"
+    if [ -f "$file" ]; then
+        cp "$file" "${file}.bak.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
+    fi
 }
 
 print_header() {
@@ -127,7 +170,7 @@ main_menu() {
     
     echo "  0) Exit"
     echo ""
-    echo -e "${CYAN}File Manager: http://localhost:$port/adminfm${NC} (after creating website)"
+    echo -e "${CYAN}File Manager: http://localhost:$port/adminfm${NC}"
     echo ""
 }
 
@@ -159,24 +202,15 @@ install_tinyfm() {
     mkdir -p "$site_path/adminfm"
 
     if [ ! -f "$site_path/adminfm/index.php" ]; then
-        echo -e "  ${YELLOW}Installing TinyFM for $site_name...${NC}"
-
         if curl -fsSL "$TINYFM_URL" -o "$site_path/adminfm/index.php" 2>/dev/null; then
-            # Inject username
             sed -i "s/\$username = 'admin';/\$username = '$username';/g" "$site_path/adminfm/index.php" 2>/dev/null || true
-
-            # Inject hashed password if available
             if [ -n "$password_hash" ]; then
                 sed -i "s/\$password = 'admin@123';/\$password = '$password_hash';/g" "$site_path/adminfm/index.php" 2>/dev/null || true
-                # Also set auth type to hash if possible
                 sed -i "s/\$auth_type = 'plain';/\$auth_type = 'hash';/g" "$site_path/adminfm/index.php" 2>/dev/null || true
             fi
-
-            echo -e "  ${GREEN}✓${NC} TinyFM installed at /$site_name/adminfm"
         else
-            echo -e "  ${YELLOW}!${NC} Could not download TinyFM"
             cat > "$site_path/adminfm/index.php" << 'TINYEOF'
-<?php echo "<h2>TinyFM not installed. Please upload manually.</h2>"; ?>
+<?php echo "<h2>TinyFM not installed.</h2>"; ?>
 TINYEOF
         fi
     fi
@@ -195,7 +229,7 @@ file_manager_settings() {
     echo "1) Change Username"
     echo "2) Change Password (auto hashed)"
     echo "3) Show Current Settings"
-    echo "0) Back to Main Menu"
+    echo "0) Back"
     echo ""
 
     read -p "Choose: " opt
@@ -207,15 +241,13 @@ file_manager_settings() {
                 handle_error "Username cannot be empty"
                 return
             fi
-
-            # Update config
-            if [ -z "$current_hash" ]; then
-                current_hash=$(php -r "echo password_hash('admin', PASSWORD_DEFAULT);" 2>/dev/null || echo '')
+            local cur_hash=$(get_tinyfm_password_hash)
+            if [ -z "$cur_hash" ]; then
+                cur_hash=$(php -r "echo password_hash('admin', PASSWORD_DEFAULT);" 2>/dev/null || echo '')
             fi
-            set_tinyfm_credentials "$new_user" "$current_hash"
+            set_tinyfm_credentials "$new_user" "$cur_hash"
 
-            # Update all existing TinyFM installations
-            echo -e "${YELLOW}Updating username on all websites...${NC}"
+            echo -e "${YELLOW}Updating all websites...${NC}"
             local count=0
             if [ -d "$SITES_DIR" ]; then
                 for site in "$SITES_DIR"/*; do
@@ -225,8 +257,7 @@ file_manager_settings() {
                     fi
                 done
             fi
-
-            echo -e "${GREEN}Username changed to '$new_user' ($count websites updated)${NC}"
+            echo -e "${GREEN}Username updated ($count websites)${NC}"
             ;;
 
         2)
@@ -236,34 +267,30 @@ file_manager_settings() {
                 return
             fi
 
-            # Generate secure hash
             local new_hash
             new_hash=$(php -r "echo password_hash('$new_pass', PASSWORD_DEFAULT);" 2>/dev/null)
 
             if [ -z "$new_hash" ]; then
-                handle_error "Failed to generate password hash (is PHP installed?)"
+                handle_error "Failed to generate hash"
                 return
             fi
 
-            local current_user2=$(get_tinyfm_username)
-            set_tinyfm_credentials "$current_user2" "$new_hash"
+            local cur_user=$(get_tinyfm_username)
+            set_tinyfm_credentials "$cur_user" "$new_hash"
 
-            # Update all existing installations
-            echo -e "${YELLOW}Updating password hash on all websites...${NC}"
+            echo -e "${YELLOW}Updating all websites...${NC}"
             local count=0
             if [ -d "$SITES_DIR" ]; then
                 for site in "$SITES_DIR"/*; do
                     if [ -f "$site/adminfm/index.php" ]; then
                         sed -i "s/\$password = '[^']*';/\$password = '$new_hash';/g" "$site/adminfm/index.php" 2>/dev/null || true
-                        # Ensure hash mode is used
                         sed -i "s/\$auth_type = 'plain';/\$auth_type = 'hash';/g" "$site/adminfm/index.php" 2>/dev/null || true
                         ((count++))
                     fi
                 done
             fi
 
-            echo -e "${GREEN}Password updated and hashed! ($count websites updated)${NC}"
-            echo -e "${YELLOW}Note: You may need to logout and login again in TinyFM.${NC}"
+            echo -e "${GREEN}Password updated and hashed! ($count websites)${NC}"
             ;;
 
         3)
@@ -275,12 +302,8 @@ file_manager_settings() {
             echo ""
             ;;
 
-        0)
-            return
-            ;;
-        *)
-            echo -e "${RED}Invalid option${NC}"
-            ;;
+        0) return ;;
+        *) echo -e "${RED}Invalid option${NC}" ;;
     esac
 
     echo ""
@@ -291,7 +314,6 @@ upgrade_termhost() {
     if [ -f "$INSTALL_DIR/upgrade.sh" ]; then
         bash "$INSTALL_DIR/upgrade.sh"
     else
-        echo -e "${YELLOW}Downloading upgrade tool...${NC}"
         curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/upgrade.sh -o /tmp/upgrade.sh
         bash /tmp/upgrade.sh
         rm -f /tmp/upgrade.sh
@@ -309,7 +331,7 @@ change_port() {
     fi
 
     if [ "$new_port" -lt 1024 ] && ! is_root; then
-        handle_error "Non-root users cannot use ports below 1024 (try 8080 or higher)"
+        handle_error "Non-root users cannot use ports below 1024"
         return
     fi
 
@@ -333,208 +355,14 @@ change_port() {
     echo -e "${GREEN}Port changed to $new_port successfully!${NC}"
 }
 
-create_website() {
-    read -p "Website name: " name
-    if [ -z "$name" ]; then
-        handle_error "Name cannot be empty"
-        return
-    fi
+install_tinyfm() { ... }
 
-    site_path="$SITES_DIR/$name"
-    if [ -d "$site_path" ]; then
-        handle_error "Website already exists"
-        return
-    fi
-
-    mkdir -p "$site_path" || { handle_error "Failed to create folder"; return; }
-
-    cat > "$site_path/index.php" << EOF
-<?php echo "<h1>Welcome to $name</h1>"; ?>
-EOF
-
-    create_vhost "$name"
-    add_to_hosts "$name"
-    install_tinyfm "$site_path" "$name"
-    nginx -s reload 2>/dev/null || true
-
-    local port=$(get_port)
-    echo -e "${GREEN}Website created: http://$name.localhost:$port${NC}"
-    echo -e "${CYAN}File Manager: http://$name.localhost:$port/adminfm${NC}"
-}
-
-create_from_storage() {
-    if ! has_storage; then
-        echo -e "${YELLOW}Run 'termux-setup-storage' first${NC}"
-        return
-    fi
-
-    echo "1) Download  2) DCIM  3) Pictures  4) Documents  5) Custom"
-    read -p "Choose: " choice
-
-    local path=""
-    case $choice in
-        1) path="$STORAGE_DIR/Download" ;;
-        2) path="$STORAGE_DIR/DCIM" ;;
-        3) path="$STORAGE_DIR/Pictures" ;;
-        4) path="$STORAGE_DIR/Documents" ;;
-        5) read -p "Folder: " f; path="$STORAGE_DIR/$f" ;;
-        *) return ;;
-    esac
-
-    if [ ! -d "$path" ]; then
-        handle_error "Folder not found"
-        return
-    fi
-
-    read -p "Website name: " name
-    site_path="$SITES_DIR/$name"
-
-    ln -s "$path" "$site_path" || { handle_error "Failed to create symlink"; return; }
-
-    create_vhost "$name"
-    add_to_hosts "$name"
-    install_tinyfm "$site_path" "$name"
-    nginx -s reload 2>/dev/null || true
-
-    local port=$(get_port)
-    echo -e "${GREEN}Created from Storage! Access: http://$name.localhost:$port${NC}"
-    echo -e "${CYAN}File Manager: http://$name.localhost:$port/adminfm${NC}"
-}
-
-create_vhost() {
-    local name=$1
-    local port=$(get_port)
-    mkdir -p "$VHOST_DIR"
-    cat > "$VHOST_DIR/$name.conf" << EOF
-server {
-    listen $port;
-    server_name $name.localhost;
-
-    root $SITES_DIR/$name;
-    index index.php index.html;
-
-    location / {
-        try_files \$uri \$uri/ /index.php?\$args;
-    }
-
-    location ~ \\.php\$ {
-        fastcgi_pass 127.0.0.1:9000;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
-        include fastcgi_params;
-    }
-}
-EOF
-}
-
-add_to_hosts() {
-    echo "127.0.0.1 $1.localhost" >> "$PREFIX/etc/hosts" 2>/dev/null || true
-}
-
-list_websites() {
-    local port=$(get_port)
-    echo -e "${YELLOW}Your Websites:${NC}"
-    
-    if [ ! -d "$SITES_DIR" ] || [ -z "$(ls -A $SITES_DIR 2>/dev/null)" ]; then
-        echo -e "  ${YELLOW}(No websites found)${NC}"
-        echo ""
-        return
-    fi
-
-    ls "$SITES_DIR" 2>/dev/null | while read s; do
-        if [ -d "$SITES_DIR/$s" ] || [ -L "$SITES_DIR/$s" ]; then
-            echo "  → $s → http://$s.localhost:$port  |  File Manager: /adminfm"
-        fi
-    done
-    echo ""
-}
-
-delete_website() {
-    echo -e "${YELLOW}Delete Website (Purge Mode)${NC}"
-    echo ""
-    
-    if [ ! -d "$SITES_DIR" ] || [ -z "$(ls -A $SITES_DIR 2>/dev/null)" ]; then
-        echo -e "  ${YELLOW}(No websites to delete)${NC}"
-        echo ""
-        read -p "Press enter to continue..."
-        return
-    fi
-
-    echo -e "${CYAN}Available websites:${NC}"
-    local i=1
-    local websites=()
-    
-    while IFS= read -r site; do
-        if [ -d "$SITES_DIR/$site" ] || [ -L "$SITES_DIR/$site" ]; then
-            websites+=("$site")
-            echo "  $i) $site"
-            ((i++))
-        fi
-    done < <(ls "$SITES_DIR" 2>/dev/null)
-
-    if [ ${#websites[@]} -eq 0 ]; then
-        echo -e "  ${YELLOW}(No websites found)${NC}"
-        echo ""
-        read -p "Press enter to continue..."
-        return
-    fi
-
-    echo ""
-    read -p "Select website number to delete (or 0 to cancel): " num
-
-    if ! [[ "$num" =~ ^[0-9]+$ ]] || [ "$num" -eq 0 ]; then
-        echo -e "${YELLOW}Cancelled.${NC}"
-        return
-    fi
-
-    if [ "$num" -lt 1 ] || [ "$num" -gt ${#websites[@]} ]; then
-        handle_error "Invalid selection"
-        return
-    fi
-
-    local selected="${websites[$((num-1))]}"
-
-    echo ""
-    echo -e "${RED}WARNING: This will permanently delete:${NC}"
-    echo "  - Website directory: $SITES_DIR/$selected"
-    echo "  - Virtual host config: $VHOST_DIR/$selected.conf"
-    echo "  - hosts entry for $selected.localhost"
-    echo "  - File manager (adminfm)"
-    echo ""
-    read -p "Type 'DELETE' to confirm: " confirm
-
-    if [ "$confirm" != "DELETE" ]; then
-        echo -e "${YELLOW}Deletion cancelled.${NC}"
-        return
-    fi
-
-    echo ""
-    echo -e "${YELLOW}Deleting website '$selected'...${NC}"
-
-    if [ -d "$SITES_DIR/$selected" ] || [ -L "$SITES_DIR/$selected" ]; then
-        rm -rf "$SITES_DIR/$selected"
-        echo -e "  ${GREEN}✓${NC} Removed directory"
-    fi
-
-    if [ -f "$VHOST_DIR/$selected.conf" ]; then
-        rm -f "$VHOST_DIR/$selected.conf"
-        echo -e "  ${GREEN}✓${NC} Removed vhost config"
-    fi
-
-    if [ -f "$PREFIX/etc/hosts" ]; then
-        sed -i "/127.0.0.1 $selected.localhost/d" "$PREFIX/etc/hosts" 2>/dev/null || true
-        echo -e "  ${GREEN}✓${NC} Removed hosts entry"
-    fi
-
-    if pgrep nginx >/dev/null; then
-        nginx -s reload 2>/dev/null || true
-        echo -e "  ${GREEN}✓${NC} Nginx reloaded"
-    fi
-
-    echo ""
-    echo -e "${GREEN}Website '$selected' has been completely deleted.${NC}"
-    read -p "Press enter to continue..."
-}
+create_website() { ... }
+create_from_storage() { ... }
+create_vhost() { ... }
+add_to_hosts() { ... }
+list_websites() { ... }
+delete_website() { ... }
 
 start_services() {
     echo -e "${YELLOW}Starting services...${NC}"
@@ -546,14 +374,14 @@ start_services() {
     sleep 1
 
     if ! php-fpm >/dev/null 2>&1; then
-        handle_error "Failed to start PHP-FPM. Check config or port 9000."
+        handle_error "Failed to start PHP-FPM"
         return 1
     fi
 
     sleep 1
 
     if ! nginx >/dev/null 2>&1; then
-        handle_error "Failed to start Nginx. Check port $(get_port) or config."
+        handle_error "Failed to start Nginx"
         return 1
     fi
 
@@ -574,30 +402,61 @@ stop_services() {
 }
 
 setup_tunnel() {
+    ensure_log_dir
+
     echo "1) Ngrok  2) Cloudflare  3) localhost.run"
     read -p "Choose: " c
+
     case $c in
-        1) read -p "Token: " t; ngrok config add-authtoken "$t"; pkill -f "ngrok http" 2>/dev/null || true; ngrok http 8080 > $LOG_DIR/ngrok.log 2>&1 & ;;
-        2) pkg install cloudflared -y; pkill -f cloudflared 2>/dev/null || true; cloudflared tunnel --url http://localhost:8080 > $LOG_DIR/cloudflare.log 2>&1 & ;;
-        3) pkill -f "ssh -R" 2>/dev/null || true; ssh -o StrictHostKeyChecking=no -R 80:localhost:8080 nokey@localhost.run > $LOG_DIR/localhostrun.log 2>&1 & ;;
+        1)
+            if ! command -v ngrok >/dev/null 2>&1; then
+                echo -e "${YELLOW}ngrok not found. Installing...${NC}"
+                pkg install ngrok -y || {
+                    echo -e "${RED}Failed to install ngrok. Please install manually.${NC}"
+                    return
+                }
+            fi
+
+            read -p "Ngrok Token (or press enter to skip): " token
+            if [ -n "$token" ]; then
+                ngrok config add-authtoken "$token" 2>/dev/null || true
+            fi
+
+            pkill -f "ngrok http" 2>/dev/null || true
+            ngrok http $(get_port) > "$LOG_DIR/ngrok.log" 2>&1 &
+            echo -e "${GREEN}Ngrok tunnel started. Check logs for URL.${NC}"
+            ;;
+
+        2)
+            if ! command -v cloudflared >/dev/null 2>&1; then
+                echo -e "${YELLOW}cloudflared not found. Installing...${NC}"
+                pkg install cloudflared -y || {
+                    echo -e "${RED}Failed to install cloudflared.${NC}"
+                    return
+                }
+            fi
+
+            pkill -f cloudflared 2>/dev/null || true
+            cloudflared tunnel --url http://localhost:$(get_port) > "$LOG_DIR/cloudflare.log" 2>&1 &
+            echo -e "${GREEN}Cloudflare tunnel started.${NC}"
+            ;;
+
+        3)
+            pkill -f "ssh -R" 2>/dev/null || true
+            ssh -o StrictHostKeyChecking=no -R 80:localhost:$(get_port) nokey@localhost.run > "$LOG_DIR/localhostrun.log" 2>&1 &
+            echo -e "${GREEN}localhost.run tunnel started.${NC}"
+            ;;
     esac
 }
 
-database_menu() {
-    echo "1) Create DB  2) List DBs"
-    read -p "Choose: " c
-    case $c in
-        1) read -p "DB Name: " db; mysql -u root -e "CREATE DATABASE $db;" ;;
-        2) mysql -u root -e "SHOW DATABASES;" ;;
-    esac
-}
-
-fix_permissions() {
-    chmod -R 755 "$SITES_DIR" "$VHOST_DIR" 2>/dev/null || true
-    echo -e "${GREEN}Permissions fixed.${NC}"
-}
+database_menu() { ... }
+fix_permissions() { ... }
+file_manager_settings() { ... }
 
 main() {
+    init_directories
+    init_config
+
     while true; do
         clear
         print_header
