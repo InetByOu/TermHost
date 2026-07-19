@@ -1,29 +1,15 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v5.4 - Fix Root Path & backup_config Error
+# TermHost v5.5 - Add Delete Website Feature
 
-VERSION="5.4"
+VERSION="5.5"
 
-# Robust path detection (handles normal user and root/su)
-if [ "$(id -u)" -eq 0 ]; then
-    # Running as root - try to find the real TermHost installation
-    if [ -f "/data/data/com.termux/files/home/termhost/termhost.sh" ]; then
-        REAL_HOME="/data/data/com.termux/files/home"
-    elif [ -f "/data/data/com.termux/files/home/.suroot/termhost/termhost.sh" ]; then
-        REAL_HOME="/data/data/com.termux/files/home/.suroot"
-    else
-        REAL_HOME="$HOME"
-    fi
-else
-    REAL_HOME="$HOME"
-fi
-
-CONFIG="$REAL_HOME/termhost/config/config.json"
-SITES_DIR="$REAL_HOME/termhost/sites"
-LOG_DIR="$REAL_HOME/termhost/logs"
-VHOST_DIR="$REAL_HOME/termhost/vhosts"
-STORAGE_DIR="$REAL_HOME/storage"
-INSTALL_DIR="$REAL_HOME/termhost"
+CONFIG="$HOME/termhost/config/config.json"
+SITES_DIR="$HOME/termhost/sites"
+LOG_DIR="$HOME/termhost/logs"
+VHOST_DIR="$HOME/termhost/vhosts"
+STORAGE_DIR="$HOME/storage"
+INSTALL_DIR="$HOME/termhost"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -40,13 +26,6 @@ get_port() { jq -r '.port // 8080' "$CONFIG" 2>/dev/null || echo 8080; }
 handle_error() {
     echo -e "${RED}[Error]${NC} $1"
     sleep 1.5
-}
-
-backup_config() {
-    local file="$1"
-    if [ -f "$file" ]; then
-        cp "$file" "${file}.bak.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
-    fi
 }
 
 print_header() {
@@ -128,18 +107,19 @@ main_menu() {
     echo "  1) Create New Website (Virtual Host)"
     echo "  2) Create Website from SD Card / Storage"
     echo "  3) List All Websites"
-    echo "  4) Start All Services"
-    echo "  5) Stop All Services"
-    echo "  6) Setup Online Tunnel"
-    echo "  7) View Status & Active Public URLs"
-    echo "  8) Database Management"
-    echo "  9) Fix Permissions & Errors"
-    echo "  10) Change Port"
-    echo "  11) Upgrade TermHost"
+    echo "  4) Delete Website"
+    echo "  5) Start All Services"
+    echo "  6) Stop All Services"
+    echo "  7) Setup Online Tunnel"
+    echo "  8) View Status & Active Public URLs"
+    echo "  9) Database Management"
+    echo "  10) Fix Permissions & Errors"
+    echo "  11) Change Port"
+    echo "  12) Upgrade TermHost"
     
     if is_root; then
-        echo -e "  ${PURPLE}12) Termux:Boot Setup${NC}"
-        echo -e "  ${PURPLE}13) Swap Management (Low RAM)${NC}"
+        echo -e "  ${PURPLE}13) Termux:Boot Setup${NC}"
+        echo -e "  ${PURPLE}14) Swap Management (Low RAM)${NC}"
     fi
     
     echo "  0) Exit"
@@ -167,25 +147,20 @@ change_port() {
         return
     fi
 
-    # Only allow low ports for root
     if [ "$new_port" -lt 1024 ] && ! is_root; then
         handle_error "Non-root users cannot use ports below 1024 (try 8080 or higher)"
         return
     fi
 
-    # Backup current Nginx config
     backup_config "$PREFIX/etc/nginx/nginx.conf"
 
-    # Update config.json safely
     if [ -f "$CONFIG" ]; then
         jq ".port = $new_port" "$CONFIG" > "${CONFIG}.tmp" 2>/dev/null && mv "${CONFIG}.tmp" "$CONFIG"
     else
-        # Create config if it doesn't exist
         mkdir -p "$(dirname "$CONFIG")"
         echo "{ \"port\": $new_port, \"use_mariadb\": true }" > "$CONFIG"
     fi
 
-    # Update Nginx config
     if [ -f "$PREFIX/etc/nginx/nginx.conf" ]; then
         sed -i "s/listen .*;/listen       $new_port;/" $PREFIX/etc/nginx/nginx.conf
     fi
@@ -294,10 +269,109 @@ add_to_hosts() {
 list_websites() {
     local port=$(get_port)
     echo -e "${YELLOW}Your Websites:${NC}"
+    
+    if [ ! -d "$SITES_DIR" ] || [ -z "$(ls -A $SITES_DIR 2>/dev/null)" ]; then
+        echo -e "  ${YELLOW}(No websites found)${NC}"
+        echo ""
+        return
+    fi
+
     ls "$SITES_DIR" 2>/dev/null | while read s; do
-        echo "  → $s → http://$s.localhost:$port"
+        if [ -d "$SITES_DIR/$s" ] || [ -L "$SITES_DIR/$s" ]; then
+            echo "  → $s → http://$s.localhost:$port"
+        fi
     done
     echo ""
+}
+
+delete_website() {
+    echo -e "${YELLOW}Delete Website (Purge Mode)${NC}"
+    echo ""
+    
+    if [ ! -d "$SITES_DIR" ] || [ -z "$(ls -A $SITES_DIR 2>/dev/null)" ]; then
+        echo -e "  ${YELLOW}(No websites to delete)${NC}"
+        echo ""
+        read -p "Press enter to continue..."
+        return
+    fi
+
+    echo -e "${CYAN}Available websites:${NC}"
+    local i=1
+    local websites=()
+    
+    while IFS= read -r site; do
+        if [ -d "$SITES_DIR/$site" ] || [ -L "$SITES_DIR/$site" ]; then
+            websites+=("$site")
+            echo "  $i) $site"
+            ((i++))
+        fi
+    done < <(ls "$SITES_DIR" 2>/dev/null)
+
+    if [ ${#websites[@]} -eq 0 ]; then
+        echo -e "  ${YELLOW}(No websites found)${NC}"
+        echo ""
+        read -p "Press enter to continue..."
+        return
+    fi
+
+    echo ""
+    read -p "Select website number to delete (or 0 to cancel): " num
+
+    if ! [[ "$num" =~ ^[0-9]+$ ]] || [ "$num" -eq 0 ]; then
+        echo -e "${YELLOW}Cancelled.${NC}"
+        return
+    fi
+
+    if [ "$num" -lt 1 ] || [ "$num" -gt ${#websites[@]} ]; then
+        handle_error "Invalid selection"
+        return
+    fi
+
+    local selected="${websites[$((num-1))]}"
+
+    echo ""
+    echo -e "${RED}WARNING: This will permanently delete:${NC}"
+    echo "  - Website directory: $SITES_DIR/$selected"
+    echo "  - Virtual host config: $VHOST_DIR/$selected.conf"
+    echo "  - hosts entry for $selected.localhost"
+    echo ""
+    read -p "Type 'DELETE' to confirm: " confirm
+
+    if [ "$confirm" != "DELETE" ]; then
+        echo -e "${YELLOW}Deletion cancelled.${NC}"
+        return
+    fi
+
+    echo ""
+    echo -e "${YELLOW}Deleting website '$selected'...${NC}"
+
+    # Remove website directory
+    if [ -d "$SITES_DIR/$selected" ] || [ -L "$SITES_DIR/$selected" ]; then
+        rm -rf "$SITES_DIR/$selected"
+        echo -e "  ${GREEN}✓${NC} Removed directory: $selected"
+    fi
+
+    # Remove virtual host config
+    if [ -f "$VHOST_DIR/$selected.conf" ]; then
+        rm -f "$VHOST_DIR/$selected.conf"
+        echo -e "  ${GREEN}✓${NC} Removed vhost config: $selected.conf"
+    fi
+
+    # Remove from /etc/hosts
+    if [ -f "$PREFIX/etc/hosts" ]; then
+        sed -i "/127.0.0.1 $selected.localhost/d" "$PREFIX/etc/hosts" 2>/dev/null || true
+        echo -e "  ${GREEN}✓${NC} Removed hosts entry"
+    fi
+
+    # Reload Nginx
+    if pgrep nginx >/dev/null; then
+        nginx -s reload 2>/dev/null || true
+        echo -e "  ${GREEN}✓${NC} Nginx reloaded"
+    fi
+
+    echo ""
+    echo -e "${GREEN}Website '$selected' has been completely deleted.${NC}"
+    read -p "Press enter to continue..."
 }
 
 start_services() {
@@ -375,14 +449,15 @@ main() {
             1) create_website ;;
             2) create_from_storage ;;
             3) list_websites ;;
-            4) start_services ;;
-            5) stop_services ;;
-            6) setup_tunnel ;;
-            7) show_status; show_active_domains ;;
-            8) database_menu ;;
-            9) fix_permissions ;;
-            10) change_port ;;
-            11) upgrade_termhost ;;
+            4) delete_website ;;
+            5) start_services ;;
+            6) stop_services ;;
+            7) setup_tunnel ;;
+            8) show_status; show_active_domains ;;
+            9) database_menu ;;
+            10) fix_permissions ;;
+            11) change_port ;;
+            12) upgrade_termhost ;;
             0) echo "Goodbye!"; exit 0 ;;
             *) echo -e "${RED}Invalid option!${NC}" ;;
         esac

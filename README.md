@@ -1,14 +1,22 @@
-# TermHost v5.4
+# TermHost v5.5
 
-> Root User Path Fix & Stability
+> Delete Website Feature
 
-## Critical Fixes in v5.4
+## New Feature: Delete Website
 
-- Fixed `backup_config: command not found` error
-- Fixed wrong config path when running as root (`.suroot`)
-- Added robust path detection for normal user vs root/su
-- `change_port` now works correctly for both normal users and root
-- Added validation: non-root users cannot use ports < 1024
+You can now completely remove a website with one command.
+
+**Menu 4) Delete Website**
+
+This will purge:
+- Website directory (`sites/<name>`)
+- Virtual host configuration (`vhosts/<name>.conf`)
+- hosts entry (`127.0.0.1 <name>.localhost`)
+- Automatically reload Nginx
+
+Safety:
+- Requires typing `DELETE` to confirm
+- Shows exactly what will be removed before proceeding
 
 ## Installation
 
@@ -21,19 +29,12 @@ Run:
 termhost
 ```
 
-## Recommendation
-
-For best experience, run TermHost as your **normal Termux user** (not as root).
-Only use root when you specifically need features like:
-- Termux:Boot
-- Low port numbers (e.g. port 80)
-- Swap management
-
 ## Features
 
+- Delete Website with full purge
 - Stable Traditional Menu
 - Smart Upgrade
-- Change Port (works for root & normal users)
+- Change Port (with backup)
 - SD Card Hosting
 - Termux:Boot & Auto Swap (Root)
 
