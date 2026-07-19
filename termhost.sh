@@ -1,8 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v7.0 - Clean Production Version
+# TermHost v7.1 - Auto Static Binary Downloader
 
-VERSION="7.0"
+VERSION="7.1"
 
 if [ "$(id -u)" -eq 0 ]; then
     REAL_HOME="/data/data/com.termux/files/home"
@@ -15,20 +15,12 @@ CONFIG="$REAL_HOME/termhost/config/config.json"
 SITES_DIR="$REAL_HOME/termhost/sites"
 LOG_DIR="$REAL_HOME/termhost/logs"
 VHOST_DIR="$REAL_HOME/termhost/vhosts"
+BIN_DIR="$REAL_HOME/termhost/bin"
 STORAGE_DIR="$REAL_HOME/storage"
 INSTALL_DIR="$REAL_HOME/termhost"
-TINYFM_URL="https://raw.githubusercontent.com/prasathmani/tinyfilemanager/master/tinyfilemanager.php"
 
 init() {
-    mkdir -p "$SITES_DIR" "$VHOST_DIR" "$LOG_DIR" "$INSTALL_DIR/config"
-    [ ! -f "$CONFIG" ] && cat > "$CONFIG" << 'EOF'
-{
-  "port": 8080,
-  "use_mariadb": true,
-  "tinyfm_username": "admin",
-  "tinyfm_password_hash": ""
-}
-EOF
+    mkdir -p "$SITES_DIR" "$VHOST_DIR" "$LOG_DIR" "$BIN_DIR" "$INSTALL_DIR/config"
 }
 
 get_port() { jq -r '.port // 8080' "$CONFIG" 2>/dev/null || echo 8080; }
@@ -37,8 +29,22 @@ is_root() { [ "$(id -u)" -eq 0 ]; }
 
 handle_error() { echo -e "${RED}[Error]${NC} $1"; sleep 1.5; }
 
-backup_config() {
-    [ -f "$1" ] && cp "$1" "${1}.bak.$(date +%s)" 2>/dev/null || true
+# Download static binary if not exists
+ensure_binary() {
+    local name="$1"
+    local url="$2"
+    local dest="$BIN_DIR/$name"
+
+    if [ ! -f "$dest" ]; then
+        echo -e "${YELLOW}Downloading $name...${NC}"
+        if curl -fsSL "$url" -o "$dest"; then
+            chmod +x "$dest"
+            echo -e "${GREEN}$name downloaded successfully.${NC}"
+        else
+            handle_error "Failed to download $name"
+            return 1
+        fi
+    fi
 }
 
 print_header() {
@@ -67,17 +73,18 @@ show_menu() {
     echo "  3) List Websites        10) Change Port"
     echo "  4) Delete Website       11) File Manager Settings"
     echo "  5) Start Services       12) Upgrade TermHost"
-    echo "  6) Stop Services        13) Termux:Boot (Root)"
-    echo "  7) Setup Tunnel         14) Swap (Root)"
-    echo "  0) Exit"
+    echo "  6) Stop Services        13) Setup Tunnel"
+    echo "  7) View Public URLs     0) Exit"
     echo ""
 }
 
 install_tinyfm() {
-    local path="$1" name="$2"
+    local path="$1"
     mkdir -p "$path/adminfm"
-    [ ! -f "$path/adminfm/index.php" ] && \
-    curl -fsSL "$TINYFM_URL" -o "$path/adminfm/index.php" 2>/dev/null || true
+    if [ ! -f "$path/adminfm/index.php" ]; then
+        curl -fsSL "https://raw.githubusercontent.com/prasathmani/tinyfilemanager/master/tinyfilemanager.php" \
+            -o "$path/adminfm/index.php" 2>/dev/null || true
+    fi
 }
 
 create_website() {
@@ -95,15 +102,12 @@ server {
     root $SITES_DIR/$name;
     index index.php index.html;
     location / { try_files \$uri \$uri/ /index.php?\$args; }
-    location ~ \\.php\$ {
-        fastcgi_pass 127.0.0.1:9000;
-        include fastcgi_params;
-    }
+    location ~ \\.php\$ { fastcgi_pass 127.0.0.1:9000; include fastcgi_params; }
 }
 EOF
 
     echo "127.0.0.1 $name.localhost" >> $PREFIX/etc/hosts 2>/dev/null || true
-    install_tinyfm "$SITES_DIR/$name" "$name"
+    install_tinyfm "$SITES_DIR/$name"
     nginx -s reload 2>/dev/null || true
 
     echo -e "${GREEN}Created: http://$name.localhost:$(get_port)${NC}"
@@ -113,24 +117,20 @@ EOF
 list_websites() {
     echo -e "${YELLOW}Websites:${NC}"
     ls "$SITES_DIR" 2>/dev/null | while read s; do
-        [ -d "$SITES_DIR/$s" ] && echo "  → $s → http://$s.localhost:$(get_port)"
+        [ -d "$SITES_DIR/$s" ] && echo "  → $s → http://$s.localhost:$(get_port) | /adminfm"
     done
-    echo ""
 }
 
 delete_website() {
     list_websites
-    read -p "Website to delete: " name
+    read -p "Website name to delete: " name
     [ -z "$name" ] && return
-
-    echo -e "${RED}Type DELETE to confirm:${NC}"
-    read -p "> " confirm
-    [ "$confirm" != "DELETE" ] && { echo "Cancelled"; return; }
+    read -p "Type DELETE to confirm: " c
+    [ "$c" != "DELETE" ] && { echo "Cancelled"; return; }
 
     rm -rf "$SITES_DIR/$name" "$VHOST_DIR/$name.conf"
     sed -i "/$name.localhost/d" $PREFIX/etc/hosts 2>/dev/null || true
     nginx -s reload 2>/dev/null || true
-
     echo -e "${GREEN}Deleted: $name${NC}"
 }
 
@@ -138,37 +138,56 @@ start_services() {
     pkill nginx php-fpm mysqld 2>/dev/null || true
     sleep 1
 
-    php-fpm -t >/dev/null 2>&1 || { handle_error "PHP-FPM config error"; return; }
-    php-fpm >/dev/null 2>&1 || { handle_error "Failed to start PHP-FPM"; return; }
-    nginx >/dev/null 2>&1 || { handle_error "Failed to start Nginx"; return; }
+    command -v php-fpm >/dev/null || { handle_error "php-fpm not found"; return 1; }
+    php-fpm -t >/dev/null 2>&1 || { handle_error "PHP-FPM config error"; php-fpm -t; return 1; }
+    php-fpm >/dev/null 2>&1 || { handle_error "Failed to start PHP-FPM"; return 1; }
+    nginx >/dev/null 2>&1 || { handle_error "Failed to start Nginx"; return 1; }
 
     echo -e "${GREEN}Services started.${NC}"
 }
 
 stop_services() {
     pkill nginx php-fpm mysqld 2>/dev/null || true
-    echo -e "${RED}Services stopped.${NC}"
+    echo -e "${RED}All services stopped.${NC}"
 }
 
 setup_tunnel() {
-    ensure_log_dir
     echo "1) Ngrok  2) Cloudflare  3) localhost.run"
     read -p "Choose: " c
+
     case $c in
-        1) command -v ngrok >/dev/null || pkg install ngrok -y; ngrok http $(get_port) > $LOG_DIR/ngrok.log 2>&1 & ;;
-        2) command -v cloudflared >/dev/null || pkg install cloudflared -y; cloudflared tunnel --url http://localhost:$(get_port) > $LOG_DIR/cloudflare.log 2>&1 & ;;
-        3) ssh -R 80:localhost:$(get_port) nokey@localhost.run > $LOG_DIR/localhostrun.log 2>&1 & ;;
+        1)
+            ensure_binary "ngrok" "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-arm64.tgz" "ngrok"
+            read -p "Ngrok Token (optional): " token
+            [ -n "$token" ] && $BIN_DIR/ngrok config add-authtoken "$token" 2>/dev/null || true
+            pkill -f "ngrok http" 2>/dev/null || true
+            $BIN_DIR/ngrok http $(get_port) > $LOG_DIR/ngrok.log 2>&1 &
+            echo -e "${GREEN}Ngrok started.${NC}"
+            ;;
+
+        2)
+            ensure_binary "cloudflared" "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64" "cloudflared"
+            pkill -f cloudflared 2>/dev/null || true
+            $BIN_DIR/cloudflared tunnel --url http://localhost:$(get_port) > $LOG_DIR/cloudflare.log 2>&1 &
+            echo -e "${GREEN}Cloudflare started.${NC}"
+            ;;
+
+        3)
+            pkill -f "ssh -R" 2>/dev/null || true
+            ssh -o StrictHostKeyChecking=no -R 80:localhost:$(get_port) nokey@localhost.run > $LOG_DIR/localhostrun.log 2>&1 &
+            echo -e "${GREEN}localhost.run started.${NC}"
+            ;;
     esac
 }
 
 file_manager_settings() {
     echo -e "${YELLOW}File Manager Settings${NC}"
-    echo "1) Change Username  2) Change Password (hashed)  3) Show Settings  0) Back"
+    echo "1) Change Username  2) Change Password  3) Show Settings  0) Back"
     read -p "Choose: " opt
     case $opt in
-        1) read -p "New username: " u; [ -n "$u" ] && jq ".tinyfm_username = \"$u\"" "$CONFIG" > tmp && mv tmp "$CONFIG" ;;
-        2) read -p "New password: " p; [ -n "$p" ] && h=$(php -r "echo password_hash('$p', PASSWORD_DEFAULT);"); jq ".tinyfm_password_hash = \"$h\"" "$CONFIG" > tmp && mv tmp "$CONFIG" ;;
-        3) echo "Username: $(get_tinyfm_username) | Password: Hashed";;
+        1) read -p "New username: " u; [ -n "$u" ] && jq ".tinyfm_username=\"$u\"" "$CONFIG" > tmp && mv tmp "$CONFIG" ;;
+        2) read -p "New password: " p; [ -n "$p" ] && h=$(php -r "echo password_hash('$p',PASSWORD_DEFAULT);"); jq ".tinyfm_password_hash=\"$h\"" "$CONFIG" > tmp && mv tmp "$CONFIG" ;;
+        3) echo "Username: $(jq -r '.tinyfm_username' $CONFIG) | Password: Hashed" ;;
     esac
 }
 

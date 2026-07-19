@@ -1,19 +1,17 @@
-# TermHost v7.0
+# TermHost v7.1
 
-> Clean & Production Ready
+> Auto Static Binary Downloader
 
-## Install
+## Features
+- Automatically downloads `ngrok` and `cloudflared` static binaries when needed
+- No dependency on `pkg install` for tunneling tools
+- Clean and lightweight
+
+## Installation
 ```bash
 curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/install.sh | bash
 termhost
 ```
-
-## Features
-- Clean architecture
-- Auto TinyFM
-- File Manager Settings
-- Delete Website
-- Robust tunnels
 
 ## Author
 InetByOu
