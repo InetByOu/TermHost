@@ -1,8 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v7.3 - Full Auto Architecture Detection for Binaries
+# TermHost v7.4 - GitHub Releases Binary Hosting
 
-VERSION="7.3"
+VERSION="7.4"
 
 if [ "$(id -u)" -eq 0 ]; then
     REAL_HOME="/data/data/com.termux/files/home"
@@ -19,6 +19,9 @@ BIN_DIR="$REAL_HOME/termhost/bin"
 STORAGE_DIR="$REAL_HOME/storage"
 INSTALL_DIR="$REAL_HOME/termhost"
 
+GITHUB_REPO="InetByOu/TermHost"
+GITHUB_RELEASE_TAG="binaries-v1.0"   # Tag release tempat binary disimpan
+
 init() {
     mkdir -p "$SITES_DIR" "$VHOST_DIR" "$LOG_DIR" "$BIN_DIR" "$INSTALL_DIR/config"
 }
@@ -29,72 +32,37 @@ is_root() { [ "$(id -u)" -eq 0 ]; }
 
 handle_error() { echo -e "${RED}[Error]${NC} $1"; sleep 1.5; }
 
-# ==================== ARCHITECTURE DETECTION ====================
 get_system_arch() {
     local arch=$(uname -m)
     case $arch in
-        aarch64|arm64)     echo "arm64" ;;
-        armv7l|armhf)      echo "arm" ;;
-        x86_64|amd64)      echo "amd64" ;;
-        i686|i386)         echo "386" ;;
-        *)                 echo "arm64" ;;   # fallback
+        aarch64|arm64) echo "arm64" ;;
+        armv7l|armhf)  echo "arm" ;;
+        x86_64|amd64)  echo "amd64" ;;
+        i686|i386)     echo "386" ;;
+        *)             echo "arm64" ;;
     esac
 }
 
-# Get ngrok download URL based on arch
-get_ngrok_url() {
-    local arch=$(get_system_arch)
-    echo "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-${arch}.tgz"
-}
-
-# Get cloudflared download URL based on arch
-get_cloudflared_url() {
-    local arch=$(get_system_arch)
-    case $arch in
-        arm64)  echo "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64" ;;
-        arm)    echo "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm" ;;
-        amd64)  echo "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64" ;;
-        386)    echo "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-386" ;;
-        *)      echo "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64" ;;
-    esac
-}
-
-# ==================== BINARY DOWNLOADER ====================
-ensure_binary() {
+# Download binary from GitHub Releases (only if not exists)
+download_binary_from_release() {
     local name="$1"
-    local url="$2"
-    local is_tgz="$3"      # true = needs extraction
+    local arch=$(get_system_arch)
+    local filename="${name}-${arch}"
     local dest="$BIN_DIR/$name"
 
     if [ -f "$dest" ]; then
         return 0
     fi
 
-    echo -e "${YELLOW}Downloading $name ($(get_system_arch))...${NC}"
+    echo -e "${YELLOW}Downloading $name for $arch from GitHub Releases...${NC}"
 
-    mkdir -p "$BIN_DIR"
+    local url="https://github.com/${GITHUB_REPO}/releases/download/${GITHUB_RELEASE_TAG}/${filename}"
 
-    if [ "$is_tgz" = "true" ]; then
-        local tmp="/tmp/${name}.tgz"
-        curl -fsSL "$url" -o "$tmp" || { handle_error "Download failed: $name"; return 1; }
-
-        tar -xzf "$tmp" -C "$BIN_DIR" 2>/dev/null || true
-        rm -f "$tmp"
-
-        # Move extracted binary if needed
-        if [ -f "$BIN_DIR/ngrok" ] && [ "$name" = "ngrok" ]; then
-            mv "$BIN_DIR/ngrok" "$dest" 2>/dev/null || true
-        fi
+    if curl -fsSL "$url" -o "$dest"; then
+        chmod +x "$dest"
+        echo -e "${GREEN}$name downloaded successfully.${NC}"
     else
-        curl -fsSL "$url" -o "$dest" || { handle_error "Download failed: $name"; return 1; }
-    fi
-
-    chmod +x "$dest" 2>/dev/null || true
-
-    if [ -f "$dest" ]; then
-        echo -e "${GREEN}$name ready.${NC}"
-    else
-        handle_error "Failed to setup $name"
+        handle_error "Failed to download $name from GitHub Releases"
         return 1
     fi
 }
@@ -209,7 +177,7 @@ setup_tunnel() {
 
     case $c in
         1)
-            ensure_binary "ngrok" "$(get_ngrok_url)" "true"
+            download_binary_from_release "ngrok"
             read -p "Ngrok Token (optional): " token
             [ -n "$token" ] && $BIN_DIR/ngrok config add-authtoken "$token" 2>/dev/null || true
             pkill -f "ngrok http" 2>/dev/null || true
@@ -218,7 +186,7 @@ setup_tunnel() {
             ;;
 
         2)
-            ensure_binary "cloudflared" "$(get_cloudflared_url)" "false"
+            download_binary_from_release "cloudflared"
             pkill -f cloudflared 2>/dev/null || true
             $BIN_DIR/cloudflared tunnel --url http://localhost:$(get_port) > $LOG_DIR/cloudflare.log 2>&1 &
             echo -e "${GREEN}Cloudflare started.${NC}"

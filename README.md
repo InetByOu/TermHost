@@ -1,16 +1,12 @@
-# TermHost v7.3
+# TermHost v7.4
 
-> Automatic Architecture Detection for Static Binaries
+> GitHub Releases Binary Hosting + Architecture Detection
 
-## Key Improvement
+## Binary Hosting
 
-The binary downloader now automatically detects your device architecture and downloads the correct version of `ngrok` and `cloudflared`.
+Static binaries (`ngrok` dan `cloudflared`) disimpan di **GitHub Releases** dengan tag `binaries-v1.0`.
 
-Supported architectures:
-- `arm64` (aarch64) - Most common
-- `arm` (armv7l)
-- `amd64` (x86_64)
-- `386` (i686)
+Binary otomatis diunduh saat pertama kali digunakan dan disimpan di `~/termhost/bin/`.
 
 ## Installation
 ```bash
