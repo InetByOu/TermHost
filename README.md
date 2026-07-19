@@ -1,42 +1,35 @@
-# TermHost v6.1 - Production Ready
+# TermHost v6.2
 
-> Complete, Mature & Ready to Use
+> Improved PHP-FPM Startup Diagnostics
 
-## Installation (One Command)
+## Fix in v6.2
+
+- Added configuration test before starting PHP-FPM (`php-fpm -t`)
+- Better error messages when PHP-FPM fails to start
+- Added helpful tips (e.g. "Try running 'pkill php-fpm'")
+- More robust service startup process
+
+## Common Fix for PHP-FPM Error
+
+If you still get "Failed to start PHP-FPM":
+
+```bash
+pkill php-fpm
+termhost
+```
+
+Then choose **5) Start All Services** again.
+
+## Installation
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/install.sh | bash
 ```
 
-After installation, just run:
+Run:
 ```bash
 termhost
 ```
-
-Everything is ready. No extra setup needed.
-
-## Smart Upgrade
-
-```bash
-bash ~/termhost/upgrade.sh
-```
-
-Or from inside TermHost → Menu 13
-
-## Uninstallation
-
-```bash
-bash ~/termhost/uninstall.sh
-```
-
-## Key Features
-
-- Production-ready environment
-- Auto TinyFM on every website
-- File Manager Settings (with hashed password)
-- Delete Website (full purge)
-- Robust Tunnel support
-- Works for both normal user and root
 
 ## Author
 InetByOu

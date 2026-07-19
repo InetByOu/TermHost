@@ -1,8 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v6.1 - Production Ready (Final)
+# TermHost v6.2 - Better PHP-FPM Error Diagnostics
 
-VERSION="6.1"
+VERSION="6.2"
 
 if [ "$(id -u)" -eq 0 ]; then
     if [ -f "/data/data/com.termux/files/home/termhost/termhost.sh" ]; then
@@ -550,24 +550,43 @@ delete_website() {
 start_services() {
     echo -e "${YELLOW}Starting services...${NC}"
     
+    # Stop any running processes first
     pkill nginx 2>/dev/null || true
     pkill php-fpm 2>/dev/null || true
     pkill mysqld 2>/dev/null || true
 
-    sleep 1
+    sleep 2
 
+    # Check if php-fpm binary exists
+    if ! command -v php-fpm >/dev/null 2>&1; then
+        handle_error "php-fpm command not found. Please reinstall PHP."
+        return 1
+    fi
+
+    # Test PHP-FPM configuration first
+    if ! php-fpm -t >/dev/null 2>&1; then
+        echo -e "${RED}[Error] PHP-FPM configuration test failed.${NC}"
+        echo -e "${YELLOW}Running config test...${NC}"
+        php-fpm -t
+        return 1
+    fi
+
+    # Start PHP-FPM
     if ! php-fpm >/dev/null 2>&1; then
-        handle_error "Failed to start PHP-FPM"
+        handle_error "Failed to start PHP-FPM. Port 9000 may be in use or config is invalid."
+        echo -e "${YELLOW}Tip: Try running 'pkill php-fpm' then start services again.${NC}"
         return 1
     fi
 
     sleep 1
 
+    # Start Nginx
     if ! nginx >/dev/null 2>&1; then
-        handle_error "Failed to start Nginx"
+        handle_error "Failed to start Nginx. Check port $(get_port) or nginx config."
         return 1
     fi
 
+    # Start MariaDB if enabled
     if [ "$(jq -r '.use_mariadb' $CONFIG 2>/dev/null)" = "true" ]; then
         mysqld_safe --datadir=$PREFIX/var/lib/mysql >/dev/null 2>&1 &
     fi
