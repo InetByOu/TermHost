@@ -1,28 +1,17 @@
-# TermHost v5.6
+# TermHost v5.7
 
-> TinyFM Integration + Password Management
+> File Manager Settings with Hashed Password
 
-## New Features in v5.6
+## File Manager Settings (Menu 12)
 
-### TinyFM as Default File Manager
+Complete settings for TinyFM without editing any PHP file manually.
 
-Every new website automatically gets **TinyFM** installed at:
+**Features:**
 
-```
-http://namawebsite.localhost:PORT/adminfm
-```
-
-### TinyFM Password Management
-
-**Menu 12) TinyFM Password Management**
-
-- Change password for all websites at once
-- Updates all existing `adminfm/index.php` installations
-- Saves default password for future websites
-
-### File Manager Link
-
-The File Manager link is now shown in the main menu and when creating websites.
+- Change Username
+- Change Password with **automatic hashing** (secure)
+- All changes applied to **all existing websites** automatically
+- Settings saved in config and used for new websites
 
 ## Installation
 
@@ -37,11 +26,11 @@ termhost
 
 ## Features
 
-- TinyFM File Manager (default on every website)
-- TinyFM Password Management
+- File Manager Settings (with hashed password)
+- TinyFM auto-installed on every website
 - Delete Website (full purge)
 - Smart Upgrade
-- Change Port (with backup)
+- Change Port
 - SD Card Hosting
 - Termux:Boot & Auto Swap (Root)
 

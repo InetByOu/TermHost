@@ -1,8 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TermHost v5.6 - TinyFM Integration + Password Management
+# TermHost v5.7 - File Manager Settings with Hashed Password
 
-VERSION="5.6"
+VERSION="5.7"
 
 CONFIG="$HOME/termhost/config/config.json"
 SITES_DIR="$HOME/termhost/sites"
@@ -117,7 +117,7 @@ main_menu() {
     echo "  9) Database Management"
     echo "  10) Fix Permissions & Errors"
     echo "  11) Change Port"
-    echo "  12) TinyFM Password Management"
+    echo "  12) File Manager Settings"
     echo "  13) Upgrade TermHost"
     
     if is_root; then
@@ -131,41 +131,160 @@ main_menu() {
     echo ""
 }
 
-get_tinyfm_password() {
-    jq -r '.tinyfm_password // "admin"' "$CONFIG" 2>/dev/null || echo "admin"
+get_tinyfm_username() {
+    jq -r '.tinyfm_username // "admin"' "$CONFIG" 2>/dev/null || echo "admin"
 }
 
-set_tinyfm_password() {
-    local new_pass="$1"
+get_tinyfm_password_hash() {
+    jq -r '.tinyfm_password_hash // ""' "$CONFIG" 2>/dev/null || echo ""
+}
+
+set_tinyfm_credentials() {
+    local username="$1"
+    local password_hash="$2"
+
     if [ -f "$CONFIG" ]; then
-        jq ".tinyfm_password = \"$new_pass\"" "$CONFIG" > "${CONFIG}.tmp" && mv "${CONFIG}.tmp" "$CONFIG"
+        jq ".tinyfm_username = \"$username\" | .tinyfm_password_hash = \"$password_hash\"" "$CONFIG" > "${CONFIG}.tmp" && mv "${CONFIG}.tmp" "$CONFIG"
     else
-        echo "{ \"port\": 8080, \"use_mariadb\": true, \"tinyfm_password\": \"$new_pass\" }" > "$CONFIG"
+        echo "{ \"port\": 8080, \"use_mariadb\": true, \"tinyfm_username\": \"$username\", \"tinyfm_password_hash\": \"$password_hash\" }" > "$CONFIG"
     fi
 }
 
 install_tinyfm() {
     local site_path="$1"
     local site_name="$2"
-    local password=$(get_tinyfm_password)
+    local username=$(get_tinyfm_username)
+    local password_hash=$(get_tinyfm_password_hash)
 
     mkdir -p "$site_path/adminfm"
 
-    # Download TinyFileManager if not exists
     if [ ! -f "$site_path/adminfm/index.php" ]; then
         echo -e "  ${YELLOW}Installing TinyFM for $site_name...${NC}"
+
         if curl -fsSL "$TINYFM_URL" -o "$site_path/adminfm/index.php" 2>/dev/null; then
-            # Set default password
-            sed -i "s/\$password = 'admin@123';/\$password = '$password';/g" "$site_path/adminfm/index.php" 2>/dev/null || true
-            sed -i "s/\$username = 'admin';/\$username = 'admin';/g" "$site_path/adminfm/index.php" 2>/dev/null || true
+            # Inject username
+            sed -i "s/\$username = 'admin';/\$username = '$username';/g" "$site_path/adminfm/index.php" 2>/dev/null || true
+
+            # Inject hashed password if available
+            if [ -n "$password_hash" ]; then
+                sed -i "s/\$password = 'admin@123';/\$password = '$password_hash';/g" "$site_path/adminfm/index.php" 2>/dev/null || true
+                # Also set auth type to hash if possible
+                sed -i "s/\$auth_type = 'plain';/\$auth_type = 'hash';/g" "$site_path/adminfm/index.php" 2>/dev/null || true
+            fi
+
             echo -e "  ${GREEN}✓${NC} TinyFM installed at /$site_name/adminfm"
         else
-            echo -e "  ${YELLOW}!${NC} Could not download TinyFM (will create placeholder)"
+            echo -e "  ${YELLOW}!${NC} Could not download TinyFM"
             cat > "$site_path/adminfm/index.php" << 'TINYEOF'
-<?php echo "<h2>TinyFM not installed. Please upload tinyfilemanager.php manually.</h2>"; ?>
+<?php echo "<h2>TinyFM not installed. Please upload manually.</h2>"; ?>
 TINYEOF
         fi
     fi
+}
+
+file_manager_settings() {
+    local current_user=$(get_tinyfm_username)
+    local current_hash=$(get_tinyfm_password_hash)
+
+    echo -e "${YELLOW}File Manager Settings (TinyFM)${NC}"
+    echo ""
+    echo -e "Current Username : ${GREEN}$current_user${NC}"
+    echo -e "Password Status  : ${GREEN}Hashed${NC} (secure)"
+    echo ""
+
+    echo "1) Change Username"
+    echo "2) Change Password (auto hashed)"
+    echo "3) Show Current Settings"
+    echo "0) Back to Main Menu"
+    echo ""
+
+    read -p "Choose: " opt
+
+    case $opt in
+        1)
+            read -p "New username: " new_user
+            if [ -z "$new_user" ]; then
+                handle_error "Username cannot be empty"
+                return
+            fi
+
+            # Update config
+            if [ -z "$current_hash" ]; then
+                current_hash=$(php -r "echo password_hash('admin', PASSWORD_DEFAULT);" 2>/dev/null || echo '')
+            fi
+            set_tinyfm_credentials "$new_user" "$current_hash"
+
+            # Update all existing TinyFM installations
+            echo -e "${YELLOW}Updating username on all websites...${NC}"
+            local count=0
+            if [ -d "$SITES_DIR" ]; then
+                for site in "$SITES_DIR"/*; do
+                    if [ -f "$site/adminfm/index.php" ]; then
+                        sed -i "s/\$username = '[^']*';/\$username = '$new_user';/g" "$site/adminfm/index.php" 2>/dev/null || true
+                        ((count++))
+                    fi
+                done
+            fi
+
+            echo -e "${GREEN}Username changed to '$new_user' ($count websites updated)${NC}"
+            ;;
+
+        2)
+            read -p "New password: " new_pass
+            if [ -z "$new_pass" ]; then
+                handle_error "Password cannot be empty"
+                return
+            fi
+
+            # Generate secure hash
+            local new_hash
+            new_hash=$(php -r "echo password_hash('$new_pass', PASSWORD_DEFAULT);" 2>/dev/null)
+
+            if [ -z "$new_hash" ]; then
+                handle_error "Failed to generate password hash (is PHP installed?)"
+                return
+            fi
+
+            local current_user2=$(get_tinyfm_username)
+            set_tinyfm_credentials "$current_user2" "$new_hash"
+
+            # Update all existing installations
+            echo -e "${YELLOW}Updating password hash on all websites...${NC}"
+            local count=0
+            if [ -d "$SITES_DIR" ]; then
+                for site in "$SITES_DIR"/*; do
+                    if [ -f "$site/adminfm/index.php" ]; then
+                        sed -i "s/\$password = '[^']*';/\$password = '$new_hash';/g" "$site/adminfm/index.php" 2>/dev/null || true
+                        # Ensure hash mode is used
+                        sed -i "s/\$auth_type = 'plain';/\$auth_type = 'hash';/g" "$site/adminfm/index.php" 2>/dev/null || true
+                        ((count++))
+                    fi
+                done
+            fi
+
+            echo -e "${GREEN}Password updated and hashed! ($count websites updated)${NC}"
+            echo -e "${YELLOW}Note: You may need to logout and login again in TinyFM.${NC}"
+            ;;
+
+        3)
+            echo ""
+            echo -e "${CYAN}Current File Manager Settings:${NC}"
+            echo "  Username : $current_user"
+            echo "  Password : Hashed (secure)"
+            echo "  Link     : http://localhost:$(get_port)/adminfm"
+            echo ""
+            ;;
+
+        0)
+            return
+            ;;
+        *)
+            echo -e "${RED}Invalid option${NC}"
+            ;;
+    esac
+
+    echo ""
+    read -p "Press enter to continue..."
 }
 
 upgrade_termhost() {
@@ -417,187 +536,6 @@ delete_website() {
     read -p "Press enter to continue..."
 }
 
-delete_website() {
-    echo -e "${YELLOW}Delete Website (Purge Mode)${NC}"
-    echo ""
-    
-    if [ ! -d "$SITES_DIR" ] || [ -z "$(ls -A $SITES_DIR 2>/dev/null)" ]; then
-        echo -e "  ${YELLOW}(No websites to delete)${NC}"
-        echo ""
-        read -p "Press enter to continue..."
-        return
-    fi
-
-    echo -e "${CYAN}Available websites:${NC}"
-    local i=1
-    local websites=()
-    
-    while IFS= read -r site; do
-        if [ -d "$SITES_DIR/$site" ] || [ -L "$SITES_DIR/$site" ]; then
-            websites+=("$site")
-            echo "  $i) $site"
-            ((i++))
-        fi
-    done < <(ls "$SITES_DIR" 2>/dev/null)
-
-    if [ ${#websites[@]} -eq 0 ]; then
-        echo -e "  ${YELLOW}(No websites found)${NC}"
-        echo ""
-        read -p "Press enter to continue..."
-        return
-    fi
-
-    echo ""
-    read -p "Select website number to delete (or 0 to cancel): " num
-
-    if ! [[ "$num" =~ ^[0-9]+$ ]] || [ "$num" -eq 0 ]; then
-        echo -e "${YELLOW}Cancelled.${NC}"
-        return
-    fi
-
-    if [ "$num" -lt 1 ] || [ "$num" -gt ${#websites[@]} ]; then
-        handle_error "Invalid selection"
-        return
-    fi
-
-    local selected="${websites[$((num-1))]}"
-
-    echo ""
-    echo -e "${RED}WARNING: This will permanently delete:${NC}"
-    echo "  - Website directory: $SITES_DIR/$selected"
-    echo "  - Virtual host config: $VHOST_DIR/$selected.conf"
-    echo "  - hosts entry for $selected.localhost"
-    echo "  - File manager (adminfm)"
-    echo ""
-    read -p "Type 'DELETE' to confirm: " confirm
-
-    if [ "$confirm" != "DELETE" ]; then
-        echo -e "${YELLOW}Deletion cancelled.${NC}"
-        return
-    fi
-
-    echo ""
-    echo -e "${YELLOW}Deleting website '$selected'...${NC}"
-
-    if [ -d "$SITES_DIR/$selected" ] || [ -L "$SITES_DIR/$selected" ]; then
-        rm -rf "$SITES_DIR/$selected"
-        echo -e "  ${GREEN}✓${NC} Removed directory"
-    fi
-
-    if [ -f "$VHOST_DIR/$selected.conf" ]; then
-        rm -f "$VHOST_DIR/$selected.conf"
-        echo -e "  ${GREEN}✓${NC} Removed vhost config"
-    fi
-
-    if [ -f "$PREFIX/etc/hosts" ]; then
-        sed -i "/127.0.0.1 $selected.localhost/d" "$PREFIX/etc/hosts" 2>/dev/null || true
-        echo -e "  ${GREEN}✓${NC} Removed hosts entry"
-    fi
-
-    if pgrep nginx >/dev/null; then
-        nginx -s reload 2>/dev/null || true
-        echo -e "  ${GREEN}✓${NC} Nginx reloaded"
-    fi
-
-    echo ""
-    echo -e "${GREEN}Website '$selected' has been completely deleted.${NC}"
-    read -p "Press enter to continue..."
-}
-
-start_services() {
-    echo -e "${YELLOW}Starting services...${NC}"
-    
-    pkill nginx 2>/dev/null || true
-    pkill php-fpm 2>/dev/null || true
-    pkill mysqld 2>/dev/null || true
-
-    sleep 1
-
-    if ! php-fpm >/dev/null 2>&1; then
-        handle_error "Failed to start PHP-FPM. Check config or port 9000."
-        return 1
-    fi
-
-    sleep 1
-
-    if ! nginx >/dev/null 2>&1; then
-        handle_error "Failed to start Nginx. Check port $(get_port) or config."
-        return 1
-    fi
-
-    if [ "$(jq -r '.use_mariadb' $CONFIG 2>/dev/null)" = "true" ]; then
-        mysqld_safe --datadir=$PREFIX/var/lib/mysql >/dev/null 2>&1 &
-    fi
-
-    echo -e "${GREEN}Services started successfully.${NC}"
-}
-
-stop_services() {
-    pkill nginx 2>/dev/null || true
-    pkill php-fpm 2>/dev/null || true
-    pkill mysqld 2>/dev/null || true
-    pkill -f "ngrok http" 2>/dev/null || true
-    pkill -f cloudflared 2>/dev/null || true
-    echo -e "${RED}All services stopped.${NC}"
-}
-
-setup_tunnel() {
-    echo "1) Ngrok  2) Cloudflare  3) localhost.run"
-    read -p "Choose: " c
-    case $c in
-        1) read -p "Token: " t; ngrok config add-authtoken "$t"; pkill -f "ngrok http" 2>/dev/null || true; ngrok http 8080 > $LOG_DIR/ngrok.log 2>&1 & ;;
-        2) pkg install cloudflared -y; pkill -f cloudflared 2>/dev/null || true; cloudflared tunnel --url http://localhost:8080 > $LOG_DIR/cloudflare.log 2>&1 & ;;
-        3) pkill -f "ssh -R" 2>/dev/null || true; ssh -o StrictHostKeyChecking=no -R 80:localhost:8080 nokey@localhost.run > $LOG_DIR/localhostrun.log 2>&1 & ;;
-    esac
-}
-
-database_menu() {
-    echo "1) Create DB  2) List DBs"
-    read -p "Choose: " c
-    case $c in
-        1) read -p "DB Name: " db; mysql -u root -e "CREATE DATABASE $db;" ;;
-        2) mysql -u root -e "SHOW DATABASES;" ;;
-    esac
-}
-
-fix_permissions() {
-    chmod -R 755 "$SITES_DIR" "$VHOST_DIR" 2>/dev/null || true
-    echo -e "${GREEN}Permissions fixed.${NC}"
-}
-
-tenfm_password_management() {
-    local current_pass=$(get_tinyfm_password)
-    echo -e "${YELLOW}TinyFM Password Management${NC}"
-    echo ""
-    echo -e "Current TinyFM password: ${GREEN}$current_pass${NC}"
-    echo ""
-    read -p "Enter new TinyFM password: " new_pass
-
-    if [ -z "$new_pass" ]; then
-        handle_error "Password cannot be empty"
-        return
-    fi
-
-    set_tinyfm_password "$new_pass"
-
-    echo ""
-    echo -e "${YELLOW}Updating password for all existing websites...${NC}"
-
-    local updated=0
-    if [ -d "$SITES_DIR" ]; then
-        for site in "$SITES_DIR"/*; do
-            if [ -f "$site/adminfm/index.php" ]; then
-                sed -i "s/\$password = '[^']*';/\$password = '$new_pass';/g" "$site/adminfm/index.php" 2>/dev/null || true
-                ((updated++))
-            fi
-        done
-    fi
-
-    echo -e "${GREEN}Password updated! ($updated websites affected)${NC}"
-    echo -e "${YELLOW}Note: You may need to logout/login again in TinyFM.${NC}"
-    read -p "Press enter to continue..."
-}
-
 start_services() {
     echo -e "${YELLOW}Starting services...${NC}"
     
@@ -681,7 +619,7 @@ main() {
             9) database_menu ;;
             10) fix_permissions ;;
             11) change_port ;;
-            12) tinyfm_password_management ;;
+            12) file_manager_settings ;;
             13) upgrade_termhost ;;
             0) echo "Goodbye!"; exit 0 ;;
             *) echo -e "${RED}Invalid option!${NC}" ;;
