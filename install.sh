@@ -31,7 +31,6 @@ echo -e "${GREEN}Done${NC}"
 # ==================== INSTALL CORE + SUPPORTING PACKAGES ====================
 echo -e "${YELLOW}[3/8]${NC} Installing core + supporting packages..."
 
-# Core packages
 CORE="nginx php-fpm php git curl wget jq unzip zip openssh"
 
 if pkg install -y $CORE >> /dev/null 2>&1; then
@@ -40,7 +39,6 @@ else
     echo -e "  ${RED}✗${NC} Some core packages failed"
 fi
 
-# MariaDB (optional but recommended)
 echo -ne "  ${YELLOW}Installing MariaDB... ${NC}"
 if pkg install -y mariadb >> /dev/null 2>&1; then
     echo -e "${GREEN}OK${NC}"
@@ -148,7 +146,6 @@ echo -e "${GREEN}Done${NC}"
 # ==================== FINAL INITIALIZATION ====================
 echo -e "${YELLOW}[8/8]${NC} Final initialization..."
 
-# Run termhost once to initialize directories and config
 bash "$INSTALL_DIR/termhost.sh" --init-only 2>/dev/null || true
 
 echo -e "${GREEN}Done${NC}"

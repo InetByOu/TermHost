@@ -1,45 +1,42 @@
-# TermHost v6.0 - Production Ready
+# TermHost v6.1 - Production Ready
 
-> Complete Environment Initialization + Robust Tunnel Support
+> Complete, Mature & Ready to Use
 
-## Major Improvements in v6.0
-
-### Full Environment Initialization
-- Automatic creation of all required directories on startup
-- Automatic creation of default `config.json`
-- Proper log directory handling
-
-### Robust Path Handling
-- Correctly detects installation path whether running as normal user or root (`.suroot`)
-
-### Improved Tunnel System (`setup_tunnel`)
-- Auto-installs `ngrok` and `cloudflared` if missing
-- Creates log directory before writing logs
-- Clearer error messages
-
-### Production-Ready Stability
-- Better error handling throughout
-- Safer service startup/shutdown
-- Consistent behavior across normal user and root environments
-
-## Installation
+## Installation (One Command)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/InetByOu/TermHost/main/install.sh | bash
 ```
 
-Run:
+After installation, just run:
 ```bash
 termhost
 ```
 
-## Features
+Everything is ready. No extra setup needed.
+
+## Smart Upgrade
+
+```bash
+bash ~/termhost/upgrade.sh
+```
+
+Or from inside TermHost → Menu 13
+
+## Uninstallation
+
+```bash
+bash ~/termhost/uninstall.sh
+```
+
+## Key Features
+
 - Production-ready environment
 - Auto TinyFM on every website
-- File Manager Settings (hashed password)
+- File Manager Settings (with hashed password)
 - Delete Website (full purge)
-- Smart Upgrade
-- Robust Tunnel support (Ngrok / Cloudflare / localhost.run)
+- Robust Tunnel support
+- Works for both normal user and root
 
 ## Author
 InetByOu
